@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: fsl-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=info
+      - MODEL_WEIGHTS_PATH=/models/fsl_transformer_v1.pt
+      - VOCABULARY_PATH=/models/vocabulary.json
+      # Set to "cuda" if the host has NVIDIA Docker runtime configured
+      - MODEL_DEVICE=cpu
+      - WINDOW_SIZE=30
+      - STRIDE=10
+      - MIN_CONFIDENCE=0.60
+      - PAUSE_GAP_MS=800
+      - MAX_VIDEO_SIZE_MB=100
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      # Mount trained model weights from the host
+      - ./models/weights:/models:ro
+      - /tmp/fsl_uploads:/tmp/fsl_uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── Uncomment to use GPU with NVIDIA Container Toolkit ─────────────────────
+  # api-gpu:
+  #   extends:
+  #     service: api
+  #   environment:
+  #     - MODEL_DEVICE=cuda
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]

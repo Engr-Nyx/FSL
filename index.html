@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>FSLingo - Filipino Sign Language</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/holistic.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
+<script src="fsl_embedded_data.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Poppins',sans-serif;background:#F0F4FF;color:#1E293B;overflow:hidden;height:100dvh;width:100vw}
+#app{width:100%;height:100dvh;display:flex;flex-direction:column;align-items:center;background:#F0F4FF;overflow:hidden}
+.screen{display:none;width:100%;max-width:500px;height:100%;flex-direction:column;position:relative;overflow:hidden}
+.screen.active{display:flex}
+
+/* SPLASH */
+#splash{background:linear-gradient(145deg,#1D4ED8 0%,#2563EB 50%,#3B82F6 100%);align-items:center;justify-content:center;gap:20px}
+.splash-logo{width:90px;height:90px;background:rgba(255,255,255,0.15);border-radius:24px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);animation:pop .6s ease}
+.splash-logo svg{width:52px;height:52px}
+.splash-title{font-size:36px;font-weight:800;color:#fff;letter-spacing:-1px}
+.splash-sub{font-size:14px;color:rgba(255,255,255,0.75);font-weight:400}
+.splash-loader{width:48px;height:4px;background:rgba(255,255,255,0.2);border-radius:4px;overflow:hidden;margin-top:16px}
+.splash-loader-bar{height:100%;width:0;background:#fff;border-radius:4px;animation:load 2s ease forwards}
+@keyframes load{to{width:100%}}
+@keyframes pop{0%{transform:scale(0.5);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+
+/* WELCOME */
+#welcome{background:linear-gradient(160deg,#1D4ED8 0%,#2563EB 45%,#EEF2FF 100%);align-items:center;justify-content:flex-end;padding-bottom:48px}
+.welcome-hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px}
+.welcome-icon{width:100px;height:100px;background:rgba(255,255,255,0.18);border-radius:28px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.welcome-title{font-size:30px;font-weight:800;color:#fff;text-align:center;line-height:1.2}
+.welcome-sub{font-size:14px;color:rgba(255,255,255,0.8);text-align:center;max-width:280px}
+.welcome-btns{width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;padding:0 24px}
+.btn-primary{width:100%;padding:15px;background:#2563EB;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:.2s}
+.btn-primary:active{transform:scale(0.97)}
+.btn-outline{width:100%;padding:15px;background:rgba(255,255,255,0.15);color:#fff;border:2px solid rgba(255,255,255,0.5);border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;backdrop-filter:blur(4px)}
+
+/* ONBOARDING */
+#onboarding{background:#fff}
+.onboard-slides{display:flex;width:300%;height:calc(100% - 100px);transition:transform .4s ease}
+.onboard-slide{width:33.333%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;gap:24px}
+.onboard-img{width:160px;height:160px;border-radius:32px;display:flex;align-items:center;justify-content:center;font-size:72px}
+.onboard-title{font-size:24px;font-weight:700;text-align:center;color:#1E293B}
+.onboard-desc{font-size:14px;color:#64748B;text-align:center;line-height:1.6}
+.onboard-dots{display:flex;gap:8px;justify-content:center;padding:16px}
+.dot{width:8px;height:8px;border-radius:50%;background:#CBD5E1;transition:.3s}
+.dot.active{width:24px;border-radius:4px;background:#2563EB}
+.onboard-footer{padding:20px 24px 32px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.btn-skip{background:none;border:none;color:#94A3B8;font-size:14px;font-family:'Poppins',sans-serif;cursor:pointer}
+.btn-next{flex:1;padding:14px;background:#2563EB;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif}
+
+/* AUTH */
+#login,#register{background:#fff;justify-content:flex-start}
+.auth-header{background:linear-gradient(135deg,#1D4ED8,#3B82F6);padding:48px 24px 32px;color:#fff}
+.auth-back{background:none;border:none;color:rgba(255,255,255,0.8);font-size:22px;cursor:pointer;margin-bottom:16px;display:block}
+.auth-title{font-size:26px;font-weight:700}
+.auth-sub{font-size:13px;color:rgba(255,255,255,0.75);margin-top:4px}
+.auth-body{flex:1;padding:28px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-size:13px;font-weight:600;color:#374151}
+.form-input{padding:13px 16px;border:1.5px solid #E2E8F0;border-radius:12px;font-size:15px;font-family:'Poppins',sans-serif;outline:none;transition:.2s;background:#F8FAFC}
+.form-input:focus{border-color:#2563EB;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.auth-err{color:#EF4444;font-size:13px;padding:8px 12px;background:#FEF2F2;border-radius:8px;display:none}
+.auth-link{text-align:center;font-size:13px;color:#64748B;margin-top:8px}
+.auth-link span{color:#2563EB;font-weight:600;cursor:pointer}
+
+/* PAGE LAYOUT */
+.page-header{padding:16px 20px 12px;display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid #F1F5F9;flex-shrink:0}
+.page-title{font-size:18px;font-weight:700;color:#1E293B;flex:1}
+.back-btn{width:36px;height:36px;border:none;background:#F1F5F9;border-radius:10px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+.screen-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;padding-bottom:84px}
+
+/* BOTTOM NAV */
+.bottom-nav{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E2E8F0;display:flex;padding:8px 0 16px;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,0.06)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0;border:none;background:none;font-family:'Poppins',sans-serif}
+.nav-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.nav-label{font-size:10px;font-weight:500;color:#94A3B8}
+.nav-item.active .nav-label{color:#2563EB;font-weight:600}
+.nav-center{width:52px;height:52px;background:linear-gradient(135deg,#2563EB,#1D4ED8);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-18px;box-shadow:0 4px 16px rgba(37,99,235,0.4)}
+
+/* HOME */
+#home{background:#F0F4FF}
+.home-header{background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:48px 20px 28px;color:#fff;flex-shrink:0}
+.home-greeting{font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:4px}
+.home-name{font-size:22px;font-weight:700}
+.home-cards{padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:84px;overflow-y:auto;flex:1}
+.hero-card{background:linear-gradient(135deg,#2563EB,#1D4ED8);border-radius:20px;padding:24px;color:#fff;display:flex;align-items:center;gap:16px;cursor:pointer;box-shadow:0 8px 24px rgba(37,99,235,0.3)}
+.hero-card-icon{width:56px;height:56px;background:rgba(255,255,255,0.15);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px}
+.hero-card-title{font-size:18px;font-weight:700}
+.hero-card-sub{font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:#fff;border-radius:16px;padding:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;flex-direction:column;gap:8px;transition:.15s}
+.card:active{transform:scale(0.97)}
+.card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.card-title{font-size:14px;font-weight:600;color:#1E293B}
+.card-sub{font-size:11px;color:#94A3B8}
+.quick-stats{display:flex;gap:10px}
+.stat-pill{flex:1;background:#fff;border-radius:12px;padding:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.stat-pill .num{font-size:22px;font-weight:700;color:#2563EB}
+.stat-pill .lbl{font-size:10px;color:#94A3B8;font-weight:500}
+
+/* INTERPRETER */
+#interpreter{background:#0F172A;position:relative}
+.interp-header{padding:48px 16px 12px;display:flex;align-items:center;gap:10px;position:absolute;top:0;left:0;right:0;z-index:10;background:linear-gradient(to bottom,rgba(15,23,42,0.95),transparent)}
+.interp-back{width:36px;height:36px;border:none;background:rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;color:#fff;font-size:18px;font-family:'Poppins',sans-serif}
+.interp-title{font-size:16px;font-weight:600;color:#fff;flex:1}
+#videoEl{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;transform:scaleX(-1)}
+#canvasEl{width:100%;height:100%;position:absolute;top:0;left:0;transform:scaleX(-1);pointer-events:none}
+.interp-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 16px 20px;background:linear-gradient(to top,rgba(15,23,42,0.97) 65%,transparent);z-index:10;display:flex;flex-direction:column;gap:10px}
+.detected-sign{text-align:center;font-size:48px;font-weight:800;color:#fff;letter-spacing:-1px;min-height:58px;line-height:1}
+.conf-bar-wrap{display:flex;align-items:center;gap:8px}
+.conf-label{font-size:11px;color:rgba(255,255,255,0.5);min-width:36px;text-align:right}
+.conf-bar{flex:1;height:4px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden}
+.conf-fill{height:100%;background:#2563EB;border-radius:4px;transition:.3s;width:0}
+.top5-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chip{padding:4px 10px;background:rgba(255,255,255,0.1);border-radius:20px;font-size:11px;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15)}
+.chip.best{background:rgba(37,99,235,0.4);border-color:#3B82F6;color:#fff}
+.sentence-row{background:rgba(255,255,255,0.07);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.gloss-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:24px}
+.gloss-chip{padding:3px 9px;background:#2563EB;border-radius:6px;font-size:12px;font-weight:600;color:#fff}
+.sentence-tl{font-size:14px;font-weight:600;color:#F59E0B}
+.sentence-en{font-size:12px;color:rgba(255,255,255,0.6);font-style:italic}
+.interp-actions{display:flex;gap:8px}
+.ia-btn{flex:1;padding:10px;border-radius:10px;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:12px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:.15s}
+.ia-btn.commit{background:#2563EB}
+.ia-btn:active{transform:scale(0.95)}
+.mode-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.mode-tabs::-webkit-scrollbar{display:none}
+.mode-btn{padding:6px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.3);background:transparent;color:#fff;font-size:12px;font-family:'Poppins',sans-serif;cursor:pointer;white-space:nowrap;transition:.15s}
+.mode-btn.active{background:#2563EB;border-color:#2563EB}
+.voice-toggle{padding:6px 12px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.7);font-size:11px;font-family:'Poppins',sans-serif;cursor:pointer}
+.voice-toggle.on{background:rgba(245,158,11,0.2);border-color:#F59E0B;color:#F59E0B}
+/* ── Pronunciation card ──────────────────────────── */
+.pronun-card{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:12px;padding:10px 14px;display:none;flex-direction:column;gap:5px}
+.pronun-card.show{display:flex}
+.pronun-syllables{font-size:20px;font-weight:700;color:#FCD34D;letter-spacing:2px;text-align:center}
+.pronun-syllables span.sep{color:rgba(252,211,77,0.4);font-weight:400}
+.pronun-syllables span.stressed{text-decoration:underline;text-decoration-color:rgba(252,211,77,0.7);text-underline-offset:3px}
+.pronun-guide{font-size:12px;color:rgba(255,255,255,0.55);text-align:center;font-style:italic}
+.pronun-row{display:flex;align-items:center;gap:8px;justify-content:center}
+.pronun-speak-btn{padding:5px 14px;background:rgba(245,158,11,0.25);border:1px solid rgba(245,158,11,0.5);border-radius:20px;color:#FCD34D;font-size:11px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;transition:.15s}
+.pronun-speak-btn:active{transform:scale(0.95)}
+.pronun-slow-btn{padding:5px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:20px;color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;transition:.15s}
+.pronun-slow-btn:active{transform:scale(0.95)}
+/* ── Teaching / correction panel ────────────────────────────── */
+.teach-panel{position:absolute;left:0;right:0;bottom:0;z-index:50;background:#0F172A;border-top:2px solid #2563EB;border-radius:20px 20px 0 0;padding:20px 18px 28px;transform:translateY(100%);transition:transform .3s ease;display:flex;flex-direction:column;gap:14px}
+.teach-panel.open{transform:translateY(0)}
+.teach-panel-title{font-size:15px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+.teach-panel-title span.badge{padding:3px 10px;background:#2563EB;border-radius:20px;font-size:11px;font-weight:600}
+.teach-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;line-height:1;padding:0}
+.teach-field{display:flex;flex-direction:column;gap:5px}
+.teach-label{font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.teach-input{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:10px 14px;color:#fff;font-size:14px;font-family:'Poppins',sans-serif;outline:none}
+.teach-input:focus{border-color:#2563EB}
+.teach-capture-btn{padding:12px;background:#2563EB;border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;font-family:'Poppins',sans-serif;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.teach-capture-btn:active{transform:scale(0.97)}
+.teach-capture-btn.capturing{background:#DC2626;animation:pulse-red 1s infinite}
+@keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.7}}
+.teach-capture-btn.done{background:#16A34A}
+.teach-progress{display:flex;gap:8px;justify-content:center}
+.teach-dot{width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.15);transition:.3s}
+.teach-dot.filled{background:#22C55E}
+.teach-dot.active{background:#F59E0B;animation:pulse-dot .8s infinite}
+@keyframes pulse-dot{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+.teach-save-btn{padding:12px;background:#16A34A;border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;font-family:'Poppins',sans-serif;cursor:pointer;opacity:.4;transition:.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.teach-save-btn.ready{opacity:1}
+.teach-save-btn:active{transform:scale(0.97)}
+.teach-hint{font-size:11px;color:rgba(255,255,255,0.4);text-align:center}
+/* ── My Signs screen ─────────────────────────────────────── */
+.mysigns-card{background:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #E2E8F0;margin-bottom:10px}
+.mysigns-icon{width:44px;height:44px;border-radius:12px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.mysigns-info{flex:1;min-width:0}
+.mysigns-gloss{font-size:14px;font-weight:700;color:#1E293B}
+.mysigns-words{font-size:12px;color:#64748B}
+.mysigns-count{font-size:11px;color:#94A3B8;margin-top:2px}
+.mysigns-del{background:none;border:none;color:#EF4444;font-size:18px;cursor:pointer;padding:4px;flex-shrink:0}
+.mysigns-empty{text-align:center;padding:40px 20px;color:#94A3B8;font-size:14px}
+
+/* DICTIONARY */
+#dictionary{background:#F0F4FF}
+.dict-search{padding:12px 16px;background:#fff;border-bottom:1px solid #F1F5F9;flex-shrink:0}
+.search-input-wrap{display:flex;align-items:center;background:#F1F5F9;border-radius:12px;padding:0 14px;gap:8px}
+.search-input-wrap input{flex:1;padding:11px 0;border:none;background:transparent;font-family:'Poppins',sans-serif;font-size:14px;outline:none}
+.dict-cats{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:#fff;border-bottom:1px solid #F1F5F9;flex-shrink:0}
+.dict-cats::-webkit-scrollbar{display:none}
+.cat-tab{padding:6px 14px;border-radius:20px;white-space:nowrap;font-size:12px;font-weight:500;border:1.5px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-family:'Poppins',sans-serif;transition:.15s}
+.cat-tab.active{background:#2563EB;border-color:#2563EB;color:#fff}
+.dict-grid{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow-y:auto;flex:1;padding-bottom:80px;align-content:start}
+.dict-card{background:#fff;border-radius:14px;padding:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);transition:.15s}
+.dict-card:active{transform:scale(0.97)}
+.dict-gloss{font-size:16px;font-weight:700;color:#2563EB;word-break:break-all}
+.dict-tl{font-size:13px;color:#374151;margin-top:2px}
+.dict-en{font-size:11px;color:#94A3B8;font-style:italic}
+.dict-cat-badge{display:inline-block;margin-top:6px;padding:2px 8px;background:#EFF6FF;border-radius:6px;font-size:10px;color:#3B82F6;font-weight:500}
+
+/* BOTTOM SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.sheet-overlay.open{display:flex}
+.sheet{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:500px;padding:24px;max-height:70vh;overflow-y:auto;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-handle{width:40px;height:4px;background:#E2E8F0;border-radius:4px;margin:0 auto 20px}
+.sheet-sign{font-size:32px;font-weight:800;color:#2563EB;margin-bottom:4px}
+.sheet-tl{font-size:20px;font-weight:600;color:#1E293B}
+.sheet-en{font-size:15px;color:#64748B;font-style:italic;margin-bottom:16px}
+.sheet-desc{font-size:14px;color:#374151;line-height:1.7;background:#F8FAFC;border-radius:12px;padding:14px}
+
+/* LEARN */
+#learn{background:#F0F4FF}
+.learn-grid{padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1;padding-bottom:84px}
+.lesson-card{background:#fff;border-radius:16px;padding:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;align-items:center;gap:16px;transition:.15s}
+.lesson-card:active{transform:scale(0.98)}
+.lesson-icon{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.lesson-info{flex:1}
+.lesson-title{font-size:15px;font-weight:600;color:#1E293B}
+.lesson-sub{font-size:12px;color:#94A3B8;margin-top:2px}
+.progress-bar{margin-top:8px;height:4px;background:#F1F5F9;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:#2563EB;border-radius:4px}
+.lesson-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#EFF6FF;color:#2563EB;white-space:nowrap}
+
+/* HISTORY */
+#history{background:#F0F4FF}
+.history-item{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;flex-direction:column;gap:6px}
+.hist-time{font-size:11px;color:#94A3B8}
+.hist-tl{font-size:15px;font-weight:600;color:#1E293B}
+.hist-en{font-size:13px;color:#64748B;font-style:italic}
+.hist-glosses{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.hist-chip{padding:2px 8px;background:#EFF6FF;border-radius:5px;font-size:11px;color:#3B82F6;font-weight:500}
+
+/* ANALYTICS */
+#analytics{background:#F0F4FF}
+.analytics-body{padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;padding-bottom:84px}
+.stat-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-tile{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.stat-tile .val{font-size:28px;font-weight:700;color:#2563EB}
+.stat-tile .key{font-size:12px;color:#94A3B8;margin-top:2px}
+.chart-card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.chart-title{font-size:14px;font-weight:600;color:#1E293B;margin-bottom:12px}
+.logs-table{width:100%;border-collapse:collapse;font-size:12px}
+.logs-table th{text-align:left;padding:8px;color:#94A3B8;font-weight:500;border-bottom:1px solid #F1F5F9}
+.logs-table td{padding:8px;color:#374151;border-bottom:1px solid #F8FAFC}
+
+/* PROFILE */
+#profile{background:#F0F4FF}
+.profile-header{background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:48px 20px 32px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0}
+.avatar{width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:32px;border:3px solid rgba(255,255,255,0.4)}
+.profile-name{font-size:20px;font-weight:700}
+.profile-email{font-size:13px;color:rgba(255,255,255,0.75)}
+.profile-body{padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1;padding-bottom:84px}
+.settings-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.settings-row{display:flex;align-items:center;padding:15px 18px;gap:14px;cursor:pointer;border-bottom:1px solid #F8FAFC;transition:.15s}
+.settings-row:last-child{border-bottom:none}
+.settings-row:active{background:#F8FAFC}
+.settings-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.settings-label{flex:1;font-size:14px;font-weight:500;color:#1E293B}
+.chevron{color:#CBD5E1;font-size:18px}
+.logout-btn{width:100%;padding:15px;background:#FEF2F2;color:#EF4444;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:20px;width:100%;max-width:360px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.modal-title{font-size:18px;font-weight:700}
+.modal-actions{display:flex;gap:10px;margin-top:4px}
+.btn-cancel{flex:1;padding:12px;background:#F1F5F9;color:#64748B;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif}
+.btn-confirm{flex:1;padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#1E293B;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:500;opacity:0;transition:.3s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.loading{text-align:center;padding:40px;color:#94A3B8;font-size:14px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- SPLASH -->
+<div id="splash" class="screen active">
+  <div class="splash-logo">
+    <svg viewBox="0 0 52 52" fill="none"><path d="M10 36Q10 20 20 14Q26 10 30 16Q34 10 40 14Q46 18 44 28Q42 36 36 40Q26 48 10 36Z" fill="white" opacity="0.9"/><circle cx="22" cy="22" r="3" fill="#2563EB"/><circle cx="32" cy="20" r="3" fill="#2563EB"/></svg>
+  </div>
+  <div class="splash-title">FSLingo</div>
+  <div class="splash-sub">Filipino Sign Language Interpreter</div>
+  <div class="splash-loader"><div class="splash-loader-bar"></div></div>
+</div>
+
+<!-- WELCOME -->
+<div id="welcome" class="screen">
+  <div class="welcome-hero">
+    <div class="welcome-icon"><span style="font-size:52px">🤟</span></div>
+    <div class="welcome-title">Bridge the Gap with Sign Language</div>
+    <div class="welcome-sub">Real-time Filipino Sign Language interpretation powered by AI</div>
+  </div>
+  <div class="welcome-btns">
+    <button class="btn-primary" onclick="showScreen('onboarding')">Get Started</button>
+    <button class="btn-outline" onclick="showScreen('login')">I already have an account</button>
+  </div>
+</div>
+
+<!-- ONBOARDING -->
+<div id="onboarding" class="screen">
+  <div class="onboard-slides" id="onboardSlides">
+    <div class="onboard-slide">
+      <div class="onboard-img" style="background:#EFF6FF">📷</div>
+      <div class="onboard-title">Point &amp; Interpret</div>
+      <div class="onboard-desc">Simply point your camera at someone signing and FSLingo will translate Filipino Sign Language in real time.</div>
+    </div>
+    <div class="onboard-slide">
+      <div class="onboard-img" style="background:#FFF7ED">📚</div>
+      <div class="onboard-title">Learn FSL</div>
+      <div class="onboard-desc">Explore our dictionary and structured lessons covering the alphabet, numbers, family signs, greetings, and more.</div>
+    </div>
+    <div class="onboard-slide">
+      <div class="onboard-img" style="background:#F0FDF4">🌟</div>
+      <div class="onboard-title">Track Progress</div>
+      <div class="onboard-desc">See your interpretation history, analytics, and growth as you use FSLingo every day.</div>
+    </div>
+  </div>
+  <div class="onboard-dots">
+    <div class="dot active" id="dot0"></div>
+    <div class="dot" id="dot1"></div>
+    <div class="dot" id="dot2"></div>
+  </div>
+  <div class="onboard-footer">
+    <button class="btn-skip" onclick="showScreen('login')">Skip</button>
+    <button class="btn-next" id="onboardNext" onclick="onboardNext()">Next</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="login" class="screen">
+  <div class="auth-header">
+    <button class="auth-back" onclick="showScreen('welcome')">&#8592;</button>
+    <div class="auth-title">Welcome Back</div>
+    <div class="auth-sub">Sign in to your FSLingo account</div>
+  </div>
+  <div class="auth-body">
+    <div class="auth-err" id="loginErr"></div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input id="loginEmail" type="email" class="form-input" placeholder="you@email.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input id="loginPass" type="password" class="form-input" placeholder="Password" autocomplete="current-password"/>
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Sign In</button>
+    <div class="auth-link">Don't have an account? <span onclick="showScreen('register')">Create one</span></div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div id="register" class="screen">
+  <div class="auth-header">
+    <button class="auth-back" onclick="showScreen('login')">&#8592;</button>
+    <div class="auth-title">Create Account</div>
+    <div class="auth-sub">Start your FSL journey today</div>
+  </div>
+  <div class="auth-body">
+    <div class="auth-err" id="registerErr"></div>
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input id="regName" type="text" class="form-input" placeholder="Your name" autocomplete="name"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input id="regEmail" type="email" class="form-input" placeholder="you@email.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input id="regPass" type="password" class="form-input" placeholder="Min 6 characters" autocomplete="new-password"/>
+    </div>
+    <button class="btn-primary" onclick="doRegister()">Create Account</button>
+    <div class="auth-link">Already have an account? <span onclick="showScreen('login')">Sign in</span></div>
+  </div>
+</div>
+
+<!-- HOME -->
+<div id="home" class="screen">
+  <div class="home-header">
+    <div class="home-greeting">Good <span id="timeGreeting">morning</span> 👋</div>
+    <div class="home-name" id="homeName">Welcome!</div>
+  </div>
+  <div class="home-cards">
+    <div class="quick-stats">
+      <div class="stat-pill"><div class="num" id="statDetections">0</div><div class="lbl">Signs</div></div>
+      <div class="stat-pill"><div class="num" id="statAccuracy">0%</div><div class="lbl">Accuracy</div></div>
+      <div class="stat-pill"><div class="num" id="statDays">0</div><div class="lbl">Days</div></div>
+    </div>
+    <div class="hero-card" onclick="navTo('interpreter')">
+      <div class="hero-card-icon">🤟</div>
+      <div>
+        <div class="hero-card-title">Start Interpreting</div>
+        <div class="hero-card-sub">Open camera and detect FSL signs</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card" onclick="navTo('dictionary')"><div class="card-icon" style="background:#EFF6FF">📖</div><div class="card-title">Dictionary</div><div class="card-sub">Browse all FSL signs</div></div>
+      <div class="card" onclick="navTo('learn')"><div class="card-icon" style="background:#FFF7ED">🎓</div><div class="card-title">Learn</div><div class="card-sub">Lessons &amp; practice</div></div>
+      <div class="card" onclick="navTo('history')"><div class="card-icon" style="background:#F0FDF4">📋</div><div class="card-title">History</div><div class="card-sub">Past translations</div></div>
+      <div class="card" onclick="navTo('analytics')"><div class="card-icon" style="background:#FDF4FF">📊</div><div class="card-title">Analytics</div><div class="card-sub">Your progress</div></div>
+      <div class="card" onclick="navTo('mysigns')"><div class="card-icon" style="background:#F0FDF4">🤟</div><div class="card-title">My Signs</div><div class="card-sub">Mga itinurong signs</div></div>
+    </div>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="navTo('home')"><div class="nav-icon">🏠</div><span class="nav-label" style="color:#2563EB">Home</span></button>
+    <button class="nav-item" onclick="navTo('dictionary')"><div class="nav-icon">📖</div><span class="nav-label">Dictionary</span></button>
+    <button class="nav-item" onclick="navTo('interpreter')"><div class="nav-center"><span style="font-size:24px">🤟</span></div></button>
+    <button class="nav-item" onclick="navTo('learn')"><div class="nav-icon">🎓</div><span class="nav-label">Learn</span></button>
+    <button class="nav-item" onclick="navTo('profile')"><div class="nav-icon">👤</div><span class="nav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- INTERPRETER -->
+<div id="interpreter" class="screen">
+  <video id="videoEl" autoplay muted playsinline></video>
+  <canvas id="canvasEl"></canvas>
+  <div class="interp-header">
+    <button class="interp-back" onclick="stopInterpreter();navTo('home')">&#8592;</button>
+    <div class="interp-title">FSL Interpreter</div>
+    <button class="voice-toggle on" id="voiceToggle" onclick="toggleVoice()">🔊 Auto</button>
+  </div>
+  <div class="interp-overlay">
+    <div class="mode-tabs" id="modeTabs">
+      <button class="mode-btn active" onclick="setMode('all',this)">All</button>
+      <button class="mode-btn" onclick="setMode('numbers',this)">Numbers</button>
+      <button class="mode-btn" onclick="setMode('letters',this)">Letters</button>
+      <button class="mode-btn" onclick="setMode('words',this)">Words</button>
+    </div>
+    <div class="detected-sign" id="detectedSign">—</div>
+    <div class="conf-bar-wrap">
+      <span class="conf-label" id="confLabel">0%</span>
+      <div class="conf-bar"><div class="conf-fill" id="confFill"></div></div>
+    </div>
+    <div class="top5-chips" id="top5Chips"></div>
+    <div class="sentence-row">
+      <div class="gloss-chips" id="glossChips"></div>
+      <div class="sentence-tl" id="sentenceTL"></div>
+      <div class="sentence-en" id="sentenceEN"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;padding:0 2px 4px">
+      <div id="wsStatusDot" style="width:8px;height:8px;border-radius:50%;background:#EF4444;flex-shrink:0"></div>
+      <div id="wsStatusText" style="font-size:10px;color:rgba(255,255,255,0.5);flex:1">Connecting...</div>
+      <div id="frameCountBadge" style="font-size:10px;color:rgba(255,255,255,0.4)"></div>
+    </div>
+    <!-- Pronunciation card: shown after each detection -->
+    <div class="pronun-card" id="pronunCard">
+      <div class="pronun-syllables" id="pronunSyllables"></div>
+      <div class="pronun-guide" id="pronunGuide"></div>
+      <div class="pronun-row">
+        <button class="pronun-speak-btn" onclick="pronunSpeak(1)">🔊 Normal</button>
+        <button class="pronun-slow-btn" onclick="pronunSpeak(0.55)">🐢 Matagal</button>
+      </div>
+    </div>
+    <div class="interp-actions">
+      <button class="ia-btn" onclick="clearSentence()">🗑 Clear</button>
+      <button class="ia-btn commit" id="detectBtn" onclick="onDetectBtn()">🤖 Detect</button>
+      <button class="ia-btn" id="correctBtn" onclick="openTeachPanel('correct')" style="display:none">✏️ Ituwid</button>
+      <button class="ia-btn" onclick="openTeachPanel('teach')">➕ Ituro</button>
+    </div>
+  </div>
+
+  <!-- ── Teaching / Correction slide-up panel ── -->
+  <div class="teach-panel" id="teachPanel">
+    <div class="teach-panel-title">
+      <span id="teachPanelTitle">Ituro ang Sign</span>
+      <span class="badge" id="teachPanelBadge">BAGO</span>
+      <button class="teach-close" onclick="closeTeachPanel()">✕</button>
+    </div>
+
+    <div class="teach-field">
+      <div class="teach-label">Salitang Filipino</div>
+      <input class="teach-input" id="teachFil" placeholder="hal. Nanay, Salamat, Tatay..." autocomplete="off"/>
+    </div>
+    <div class="teach-field">
+      <div class="teach-label">English Translation</div>
+      <input class="teach-input" id="teachEn" placeholder="e.g. Mother, Thank you, Father..." autocomplete="off"/>
+    </div>
+    <div class="teach-field">
+      <div class="teach-label">Gloss Label (UPPERCASE, walang espasyo)</div>
+      <input class="teach-input" id="teachGloss" placeholder="hal. NANAY, SALAMAT..." autocomplete="off" style="text-transform:uppercase"/>
+    </div>
+
+    <div class="teach-hint">Ipakita ang sign sa camera at pindutin ang button para makuha ang datos.</div>
+
+    <button class="teach-capture-btn" id="teachCaptureBtn" onclick="startTeachCapture()">
+      <span id="teachCaptureBtnIcon">✋</span>
+      <span id="teachCaptureBtnText">I-capture ang Sign (3 beses)</span>
+    </button>
+
+    <div class="teach-progress" id="teachProgress">
+      <div class="teach-dot" id="tdot0"></div>
+      <div class="teach-dot" id="tdot1"></div>
+      <div class="teach-dot" id="tdot2"></div>
+    </div>
+
+    <button class="teach-save-btn" id="teachSaveBtn" onclick="saveTeachSign()">
+      💾 I-save ang Sign
+    </button>
+  </div>
+</div>
+
+<!-- ── My Signs screen ── -->
+<div id="mysigns" class="screen" style="background:#F8FAFC;overflow-y:auto">
+  <div class="page-header" style="background:#fff;border-bottom:1px solid #E2E8F0;padding:16px;display:flex;align-items:center;gap:12px">
+    <button onclick="navTo('home')" style="background:none;border:none;font-size:20px;cursor:pointer">←</button>
+    <div style="font-size:17px;font-weight:700;color:#1E293B">Aking mga Itinurong Signs</div>
+    <button onclick="openTeachPanel('teach')" style="margin-left:auto;padding:7px 14px;background:#2563EB;border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer">+ Ituro</button>
+  </div>
+  <div style="padding:16px" id="mysignsList">
+    <div class="mysigns-empty">Wala pang itinurong signs.<br>Gamitin ang ➕ Ituro button sa interpreter para magturo.</div>
+  </div>
+</div>
+
+<!-- DICTIONARY -->
+<div id="dictionary" class="screen">
+  <div class="page-header"><div class="page-title">FSL Dictionary</div></div>
+  <div class="dict-search">
+    <div class="search-input-wrap">
+      <span>🔍</span>
+      <input type="text" id="dictSearch" placeholder="Search signs..." oninput="filterDict()"/>
+    </div>
+  </div>
+  <div class="dict-cats" id="dictCats">
+    <button class="cat-tab active" onclick="filterDictCat('all',this)">All</button>
+    <button class="cat-tab" onclick="filterDictCat('numbers',this)">Numbers</button>
+    <button class="cat-tab" onclick="filterDictCat('letters',this)">Letters</button>
+    <button class="cat-tab" onclick="filterDictCat('family',this)">Family</button>
+    <button class="cat-tab" onclick="filterDictCat('greetings',this)">Greetings</button>
+    <button class="cat-tab" onclick="filterDictCat('common',this)">Common</button>
+    <button class="cat-tab" onclick="filterDictCat('emotions',this)">Emotions</button>
+  </div>
+  <div class="dict-grid" id="dictGrid"></div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="navTo('home')"><div class="nav-icon">🏠</div><span class="nav-label">Home</span></button>
+    <button class="nav-item active" onclick="navTo('dictionary')"><div class="nav-icon">📖</div><span class="nav-label" style="color:#2563EB">Dictionary</span></button>
+    <button class="nav-item" onclick="navTo('interpreter')"><div class="nav-center"><span style="font-size:24px">🤟</span></div></button>
+    <button class="nav-item" onclick="navTo('learn')"><div class="nav-icon">🎓</div><span class="nav-label">Learn</span></button>
+    <button class="nav-item" onclick="navTo('profile')"><div class="nav-icon">👤</div><span class="nav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- LEARN -->
+<div id="learn" class="screen">
+  <div class="page-header"><div class="page-title">Learn FSL</div></div>
+  <div class="learn-grid" id="learnGrid"></div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="navTo('home')"><div class="nav-icon">🏠</div><span class="nav-label">Home</span></button>
+    <button class="nav-item" onclick="navTo('dictionary')"><div class="nav-icon">📖</div><span class="nav-label">Dictionary</span></button>
+    <button class="nav-item" onclick="navTo('interpreter')"><div class="nav-center"><span style="font-size:24px">🤟</span></div></button>
+    <button class="nav-item active" onclick="navTo('learn')"><div class="nav-icon">🎓</div><span class="nav-label" style="color:#2563EB">Learn</span></button>
+    <button class="nav-item" onclick="navTo('profile')"><div class="nav-icon">👤</div><span class="nav-label">Profile</span></button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="history" class="screen">
+  <div class="page-header">
+    <button class="back-btn" onclick="navTo('home')">&#8592;</button>
+    <div class="page-title">History</div>
+    <button onclick="clearHistory()" style="background:none;border:none;color:#EF4444;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif">Clear</button>
+  </div>
+  <div class="screen-body" id="historyList"></div>
+</div>
+
+<!-- ANALYTICS -->
+<div id="analytics" class="screen">
+  <div class="page-header">
+    <button class="back-btn" onclick="navTo('home')">&#8592;</button>
+    <div class="page-title">Analytics</div>
+  </div>
+  <div class="analytics-body">
+    <div class="stat-tiles">
+      <div class="stat-tile"><div class="val" id="anDetections">—</div><div class="key">Total Signs</div></div>
+      <div class="stat-tile"><div class="val" id="anAccuracy">—</div><div class="key">Accuracy</div></div>
+      <div class="stat-tile"><div class="val" id="anDays">—</div><div class="key">Active Days</div></div>
+      <div class="stat-tile"><div class="val" id="anTopSign" style="font-size:18px">—</div><div class="key">Top Sign</div></div>
+    </div>
+    <div class="chart-card"><div class="chart-title">Last 7 Days</div><canvas id="lineChart" height="120"></canvas></div>
+    <div class="chart-card"><div class="chart-title">Top Signs</div><canvas id="barChart" height="140"></canvas></div>
+    <div class="chart-card"><div class="chart-title">Feedback Distribution</div><canvas id="doughnutChart" height="140"></canvas></div>
+    <div class="chart-card">
+      <div class="chart-title">Recent Logs</div>
+      <table class="logs-table"><thead><tr><th>Sign</th><th>Confidence</th><th>Time</th></tr></thead><tbody id="logsBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div id="profile" class="screen">
+  <div class="profile-header">
+    <div class="avatar" id="profileAvatar">👤</div>
+    <div class="profile-name" id="profileName">—</div>
+    <div class="profile-email" id="profileEmail">—</div>
+  </div>
+  <div class="profile-body">
+    <div class="quick-stats">
+      <div class="stat-pill"><div class="num" id="profDetections">0</div><div class="lbl">Signs</div></div>
+      <div class="stat-pill"><div class="num" id="profAccuracy">0%</div><div class="lbl">Accuracy</div></div>
+      <div class="stat-pill"><div class="num" id="profDays">0</div><div class="lbl">Days</div></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-row" onclick="editName()"><div class="settings-icon" style="background:#EFF6FF">✏️</div><div class="settings-label">Edit Name</div><span class="chevron">›</span></div>
+      <div class="settings-row" onclick="changePassword()"><div class="settings-icon" style="background:#FFF7ED">🔒</div><div class="settings-label">Change Password</div><span class="chevron">›</span></div>
+      <div class="settings-row" onclick="navTo('analytics')"><div class="settings-icon" style="background:#F0FDF4">📊</div><div class="settings-label">Analytics</div><span class="chevron">›</span></div>
+      <div class="settings-row" onclick="navTo('history')"><div class="settings-icon" style="background:#FDF4FF">📋</div><div class="settings-label">Translation History</div><span class="chevron">›</span></div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="navTo('home')"><div class="nav-icon">🏠</div><span class="nav-label">Home</span></button>
+    <button class="nav-item" onclick="navTo('dictionary')"><div class="nav-icon">📖</div><span class="nav-label">Dictionary</span></button>
+    <button class="nav-item" onclick="navTo('interpreter')"><div class="nav-center"><span style="font-size:24px">🤟</span></div></button>
+    <button class="nav-item" onclick="navTo('learn')"><div class="nav-icon">🎓</div><span class="nav-label">Learn</span></button>
+    <button class="nav-item active" onclick="navTo('profile')"><div class="nav-icon">👤</div><span class="nav-label" style="color:#2563EB">Profile</span></button>
+  </div>
+</div>
+
+<!-- DICT BOTTOM SHEET -->
+<div class="sheet-overlay" id="dictSheet" onclick="closeDictSheet(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-sign" id="sheetSign"></div>
+    <div class="sheet-tl" id="sheetTL"></div>
+    <div class="sheet-en" id="sheetEN"></div>
+    <div class="sheet-desc" id="sheetDesc"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOverlay(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modalTitle"></div>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-confirm" id="modalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- FIREBASE MODULE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, updateProfile, updatePassword,
+  EmailAuthProvider, reauthenticateWithCredential
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, getDocs, query,
+  orderBy, limit, Timestamp, where
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB146tp3bqv1s9hII-A_-_3BQjsubfc3VI",
+  authDomain: "fslingo.firebaseapp.com",
+  projectId: "fslingo",
+  storageBucket: "fslingo.firebasestorage.app",
+  messagingSenderId: "763277224285",
+  appId: "1:763277224285:web:7bfd2d6b2efba528f960b4",
+  measurementId: "G-SXGBR9LDC8"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+window._auth = auth;
+window._db = db;
+window._fbFns = {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  collection, addDoc, getDocs, query, orderBy, limit, Timestamp, where
+};
+
+onAuthStateChanged(auth, user => {
+  window._currentUser = user;
+  if (window._onAuthReady) window._onAuthReady(user);
+});
+</script>
+
+<!-- APP SCRIPT -->
+<script>
+// ═══════════════════════════════════════════
+// VOCABULARY
+// ═══════════════════════════════════════════
+const VOCAB = {
+  '1':{tl:'isa',en:'one',cat:'numbers',desc:'Extend index finger upward, other fingers and thumb closed.'},
+  '2':{tl:'dalawa',en:'two',cat:'numbers',desc:'Extend index and middle fingers with palm facing outward.'},
+  '3':{tl:'tatlo',en:'three',cat:'numbers',desc:'Extend thumb, index, and middle fingers.'},
+  '4':{tl:'apat',en:'four',cat:'numbers',desc:'Extend four fingers with thumb tucked, palm facing outward.'},
+  '5':{tl:'lima',en:'five',cat:'numbers',desc:'Open palm, all five fingers spread, facing outward.'},
+  '6':{tl:'anim',en:'six',cat:'numbers',desc:'Thumb touches pinky finger, other fingers extended.'},
+  '7':{tl:'pito',en:'seven',cat:'numbers',desc:'Thumb touches ring finger, other fingers extended.'},
+  '8':{tl:'walo',en:'eight',cat:'numbers',desc:'Thumb touches middle finger, other fingers extended.'},
+  '9':{tl:'siyam',en:'nine',cat:'numbers',desc:'Thumb and index form a circle, other fingers extended upward.'},
+  '10':{tl:'sampu',en:'ten',cat:'numbers',desc:'Closed fist with thumb up, shake or twist the wrist.'},
+  'NANAY':{tl:'nanay',en:'mother',cat:'family',desc:'Open hand near chin with fingers spread; tap chin area twice gently.'},
+  'TATAY':{tl:'tatay',en:'father',cat:'family',desc:'Open hand near forehead with fingers spread; tap forehead area twice.'},
+  'KAPATID':{tl:'kapatid',en:'sibling',cat:'family',desc:'Extend index finger, tap shoulder then move forward; or two L-hands moving toward each other.'},
+  'LOLO':{tl:'lolo',en:'grandfather',cat:'family',desc:'Flat hand near forehead, then move outward and downward representing age/generation.'},
+  'LOLA':{tl:'lola',en:'grandmother',cat:'family',desc:'Flat hand near chin, then move outward and downward representing age/generation.'},
+  'ANAK':{tl:'anak',en:'child',cat:'family',desc:'Bent arm cradling a baby, rock arm slightly side to side.'},
+  'ASAWA':{tl:'asawa',en:'spouse',cat:'family',desc:'Interlock fingers of both hands together.'},
+  'PAMILYA':{tl:'pamilya',en:'family',cat:'family',desc:'Both hands form F-shape, palms facing each other, then move apart in a circle to meet again.'},
+  'KUMUSTA':{tl:'kumusta',en:'how are you',cat:'greetings',desc:'Wave a flat hand with palm facing outward in a greeting motion, then thumbs up.'},
+  'MAGANDANG_UMAGA':{tl:'magandang umaga',en:'good morning',cat:'greetings',desc:'Hands near chin open outward (beautiful), then mimic sunrise with one hand rising.'},
+  'MAGANDANG_HAPON':{tl:'magandang hapon',en:'good afternoon',cat:'greetings',desc:'Hands near chin open outward (beautiful), then level hand moves across horizontally.'},
+  'MAGANDANG_GABI':{tl:'magandang gabi',en:'good evening',cat:'greetings',desc:'Hands near chin open outward (beautiful), then bent hand descends like the setting sun.'},
+  'PAALAM':{tl:'paalam',en:'goodbye',cat:'greetings',desc:'Wave hand open-palmed, or bring fingers together repeatedly in a waving goodbye gesture.'},
+  'SALAMAT':{tl:'salamat',en:'thank you',cat:'greetings',desc:'Flat hand touches lips then moves forward and slightly downward toward the other person.'},
+  'PAUMANHIN':{tl:'paumanhin',en:'sorry',cat:'greetings',desc:'Closed fist circles on chest in a clockwise motion.'},
+  'PAKIUSAP':{tl:'pakiusap',en:'please',cat:'greetings',desc:'Flat hand on chest moves in a circular motion, or hand extends forward palm up as a request.'},
+  'OO':{tl:'oo',en:'yes',cat:'common',desc:'Closed fist nods up and down, mimicking a nodding head.'},
+  'HINDI':{tl:'hindi',en:'no',cat:'common',desc:'Index and middle fingers extended, shake hand side to side; or index finger wags from side to side.'},
+  'KUMAIN':{tl:'kumain',en:'eat',cat:'common',desc:'Fingers bunched together move to mouth repeatedly, as if bringing food to the mouth.'},
+  'UMINOM':{tl:'uminom',en:'drink',cat:'common',desc:'Hand in a C-shape tilts toward mouth, mimicking drinking from a cup.'},
+  'TUBIG':{tl:'tubig',en:'water',cat:'common',desc:'W-handshape taps lips twice.'},
+  'PAGKAIN':{tl:'pagkain',en:'food',cat:'common',desc:'Fingers bunched together tap near mouth once or twice.'},
+  'MASARAP':{tl:'masarap',en:'delicious',cat:'common',desc:'Fingers pinch together and kiss, then extend outward from lips.'},
+  'GUSTO':{tl:'gusto',en:'want',cat:'common',desc:'Both hands with curved fingers pulled toward body, showing desire.'},
+  'TULONG':{tl:'tulong',en:'help',cat:'common',desc:'One fist on open palm of other hand; both rise upward together.'},
+  'BAHAY':{tl:'bahay',en:'home',cat:'common',desc:'Fingertips touch to form a roof shape, then move down to form walls.'},
+  'MABUTI':{tl:'mabuti',en:'good/fine',cat:'common',desc:'Thumbs up, or flat hand moves forward from chin area.'},
+  'MAHAL':{tl:'mahal',en:'love',cat:'emotions',desc:'Both arms cross over chest with fists closed, like hugging yourself.'},
+  'MAGANDA':{tl:'maganda',en:'beautiful',cat:'emotions',desc:'Open hand circles the face with fingers spread, then closes as it moves away.'},
+  'MASAYA':{tl:'masaya',en:'happy',cat:'emotions',desc:'Open hands on chest brush upward repeatedly, showing joy.'},
+  'MALUNGKOT':{tl:'malungkot',en:'sad',cat:'emotions',desc:'Both open hands drop down from face level, showing drooping sadness.'},
+  'GALIT':{tl:'galit',en:'angry',cat:'emotions',desc:'Curved fingers at face, then pull hands down and apart with tension.'},
+  'OSPITAL':{tl:'ospital',en:'hospital',cat:'common',desc:'H-handshape traces a cross (+) on upper arm.'},
+  'DOKTOR':{tl:'doktor',en:'doctor',cat:'common',desc:'Index and middle fingers tap inside wrist to check pulse.'},
+  'SAKIT':{tl:'sakit',en:'sick',cat:'common',desc:'Middle finger on forehead and middle finger on stomach; both hands bend toward each other.'},
+};
+// Letters A-Z
+'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l=>{
+  VOCAB[l]={tl:l.toLowerCase(),en:`letter ${l}`,cat:'letters',desc:`Fingerspell the letter ${l} using the FSL manual alphabet.`};
+});
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let currentScreen='splash';
+let onboardStep=0;
+let currentMode='all';
+let trainingData={};
+let datasetLoaded=false;
+let interpreterActive=false;
+let handsDetector=null;
+let cameraObj=null;
+let frameBuffer=[];
+let currentGlosses=[];
+let sentenceTimer=null;
+let sessionHistory=[];
+let localStats={detections:0,correct:0,days:[]};
+let voiceEnabled=true;   // auto-speak ON by default
+let _lastPronunText='';
+let dictCategory='all';
+let dictSearchTerm='';
+let chartInstances={};
+let lastCommittedSign=null;
+let lastCommitTime=0;
+let modalConfirmCb=null;
+let toastTimer=null;
+
+// WebSocket AI interpreter state
+let wsConn=null;
+let wsBufferedFrames=0;
+let noHandFlushTimer=null;
+let lastFrameSentTime=0;
+let offscreenCanvas=null;
+const WS_URL=(()=>{if(location.protocol==='file:'||!location.host)return 'ws://localhost:9000/ws/stream';const proto=location.protocol==='https:'?'wss:':'ws:';return `${proto}//${location.host}/ws/stream`;})();
+const API_BASE=(location.protocol==='file:'||!location.host)?'http://localhost:9000':'';
+const NO_HAND_FLUSH_MS=900;   // flush 0.9s after hands leave frame
+const FRAME_SEND_MS=200;       // send ~5 frames/sec to backend
+
+try{sessionHistory=JSON.parse(localStorage.getItem('fsl_history')||'[]');}catch(e){sessionHistory=[];}
+try{localStats=JSON.parse(localStorage.getItem('fsl_stats')||'{"detections":0,"correct":0,"days":[]}');}catch(e){}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+  currentScreen=id;
+}
+
+function navTo(id){
+  if(currentScreen==='interpreter') stopInterpreter();
+  showScreen(id);
+  if(id==='home') refreshHome();
+  else if(id==='dictionary') renderDict();
+  else if(id==='learn') renderLearn();
+  else if(id==='history') renderHistory();
+  else if(id==='analytics') renderAnalytics();
+  else if(id==='profile') refreshProfile();
+  else if(id==='interpreter') startInterpreter();
+  else if(id==='mysigns') loadMySigns();
+}
+
+// ═══════════════════════════════════════════
+// ONBOARDING
+// ═══════════════════════════════════════════
+function onboardNext(){
+  onboardStep++;
+  if(onboardStep>=3){showScreen('login');return;}
+  document.getElementById('onboardSlides').style.transform=`translateX(-${onboardStep*33.333}%)`;
+  for(let i=0;i<3;i++) document.getElementById('dot'+i).classList.toggle('active',i===onboardStep);
+  if(onboardStep===2) document.getElementById('onboardNext').textContent='Get Started';
+}
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginErr');
+  err.style.display='none';
+  if(!email||!pass){err.textContent='Please fill in all fields.';err.style.display='block';return;}
+  try{
+    await window._fbFns.signInWithEmailAndPassword(window._auth,email,pass);
+    afterLogin();
+  }catch(e){
+    err.textContent=friendlyError(e.code);
+    err.style.display='block';
+  }
+}
+
+async function doRegister(){
+  const name=document.getElementById('regName').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const pass=document.getElementById('regPass').value;
+  const err=document.getElementById('registerErr');
+  err.style.display='none';
+  if(!name||!email||!pass){err.textContent='Please fill in all fields.';err.style.display='block';return;}
+  try{
+    const cred=await window._fbFns.createUserWithEmailAndPassword(window._auth,email,pass);
+    await window._fbFns.updateProfile(cred.user,{displayName:name});
+    window._currentUser=cred.user;
+    afterLogin();
+  }catch(e){
+    err.textContent=friendlyError(e.code);
+    err.style.display='block';
+  }
+}
+
+async function doLogout(){
+  await window._fbFns.signOut(window._auth);
+  showScreen('welcome');
+}
+
+function afterLogin(){
+  refreshHome();
+  showScreen('home');
+}
+
+function friendlyError(code){
+  const m={
+    'auth/invalid-email':'Invalid email address.',
+    'auth/user-not-found':'No account found with that email.',
+    'auth/wrong-password':'Incorrect password.',
+    'auth/invalid-credential':'Invalid email or password.',
+    'auth/email-already-in-use':'Email already registered.',
+    'auth/weak-password':'Password must be at least 6 characters.',
+    'auth/too-many-requests':'Too many attempts. Try again later.',
+  };
+  return m[code]||'An error occurred. Please try again.';
+}
+
+window._onAuthReady=function(user){
+  if(user&&(currentScreen==='splash'||currentScreen==='login'||currentScreen==='register'||currentScreen==='welcome')){
+    afterLogin();
+  }
+};
+
+// ═══════════════════════════════════════════
+// HOME
+// ═══════════════════════════════════════════
+function refreshHome(){
+  const user=window._currentUser;
+  const h=new Date().getHours();
+  const greet=h<12?'morning':h<17?'afternoon':'evening';
+  const el=document.getElementById('timeGreeting');
+  if(el) el.textContent=greet;
+  const nm=document.getElementById('homeName');
+  if(nm) nm.textContent=user?(user.displayName||user.email.split('@')[0]):'Guest';
+  updateStatDisplays();
+}
+
+function updateStatDisplays(){
+  const s=localStats;
+  const acc=s.detections>0?Math.round((s.correct/s.detections)*100):0;
+  const setEl=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  setEl('statDetections',s.detections||0);
+  setEl('statAccuracy',acc+'%');
+  setEl('statDays',(s.days||[]).length||0);
+}
+
+function saveStats(){localStorage.setItem('fsl_stats',JSON.stringify(localStats));}
+
+// ═══════════════════════════════════════════
+// DATASET LOADING
+// ═══════════════════════════════════════════
+async function loadDataset(){
+  trainingData={};
+  try{
+    const r=await fetch('dataset.json');
+    if(r.ok){
+      const data=await r.json();
+      if(Array.isArray(data)){
+        data.forEach(item=>{
+          const lbl=String(item.label||item.class||'');
+          if(!lbl) return;
+          const feat=item.landmarks||item.features||item.data;
+          if(!feat) return;
+          if(!trainingData[lbl]) trainingData[lbl]=[];
+          const flat=Array.isArray(feat[0])?feat.flat():feat;
+          trainingData[lbl].push(flat);
+        });
+      }else if(typeof data==='object'){
+        Object.entries(data).forEach(([lbl,samples])=>{
+          if(!trainingData[lbl]) trainingData[lbl]=[];
+          (samples||[]).forEach(s=>{
+            const flat=Array.isArray(s[0])?s.flat():s;
+            trainingData[lbl].push(flat);
+          });
+        });
+      }
+    }
+  }catch(e){console.warn('dataset.json:',e);}
+
+  // Alphabet from fsl_embedded_data.js
+  const srcs=[window.FSL_ALPHABET_DATA, window.FSL_LETTERS_DATA];
+  srcs.forEach(src=>{
+    if(!src) return;
+    Object.entries(src).forEach(([lbl,samples])=>{
+      if(!trainingData[lbl]) trainingData[lbl]=[];
+      (samples||[]).forEach(s=>{
+        const flat=Array.isArray(s[0])?s.flat():s;
+        trainingData[lbl].push(flat);
+      });
+    });
+  });
+
+  datasetLoaded=true;
+  console.log('Dataset loaded. Labels:',Object.keys(trainingData).length);
+}
+
+// ═══════════════════════════════════════════
+// KNN CLASSIFIER
+// ═══════════════════════════════════════════
+function classifySign(live){
+  let candidates={};
+  for(const [label,samples] of Object.entries(trainingData)){
+    const isNum=/^\d+$/.test(label)||/^\d+_left$/.test(label);
+    const isLetter=/^[A-Z]$/.test(label);
+    const isWord=!isNum&&!isLetter;
+    if(currentMode==='numbers'&&!isNum) continue;
+    if(currentMode==='letters'&&!isLetter) continue;
+    if(currentMode==='words'&&!isWord) continue;
+    candidates[label]=samples;
+  }
+  if(Object.keys(candidates).length===0) return null;
+
+  const K=7;
+  const allDists=[];
+  for(const [label,samples] of Object.entries(candidates)){
+    for(const sample of samples){
+      if(!sample||!sample.length) continue;
+      let dist=0;
+      const len=Math.min(live.length,sample.length);
+      for(let i=0;i<len;i++) dist+=(live[i]-sample[i])**2;
+      allDists.push({label,dist:Math.sqrt(dist)});
+    }
+  }
+  if(!allDists.length) return null;
+  allDists.sort((a,b)=>a.dist-b.dist);
+  const topK=allDists.slice(0,K);
+
+  const votes={};
+  for(const {label,dist} of topK){
+    const w=1/(dist+1e-6);
+    votes[label]=(votes[label]||0)+w;
+  }
+  const sorted=Object.entries(votes).sort((a,b)=>b[1]-a[1]);
+  const totalVotes=sorted.reduce((s,[,v])=>s+v,0);
+  const confidence=sorted[0][1]/totalVotes;
+  return{
+    label:sorted[0][0],
+    confidence,
+    top5:sorted.slice(0,5).map(([l,v])=>({label:l,conf:v/totalVotes}))
+  };
+}
+
+function normalizeLandmarks(lms){
+  if(!lms||!lms.length) return null;
+  const w=lms[0];
+  let maxD=0;
+  for(const lm of lms){
+    const d=Math.sqrt((lm.x-w.x)**2+(lm.y-w.y)**2+(lm.z-w.z)**2);
+    if(d>maxD) maxD=d;
+  }
+  if(maxD<1e-6) maxD=1;
+  const flat=[];
+  for(const lm of lms){
+    flat.push((lm.x-w.x)/maxD,(lm.y-w.y)/maxD,(lm.z-w.z)/maxD);
+  }
+  return flat;
+}
+
+// ═══════════════════════════════════════════
+// TEMPORAL SMOOTHING
+// ═══════════════════════════════════════════
+const FRAME_BUF=15;
+const COMMIT_MIN=10;
+const CONF_MIN=0.72;
+
+function addToBuffer(r){
+  frameBuffer.push(r);
+  if(frameBuffer.length>FRAME_BUF) frameBuffer.shift();
+}
+
+function getStableSign(){
+  if(frameBuffer.length<FRAME_BUF) return null;
+  const counts={};
+  for(const r of frameBuffer){if(r&&r.label) counts[r.label]=(counts[r.label]||0)+1;}
+  const best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  if(!best||best[1]<COMMIT_MIN) return null;
+  const matching=frameBuffer.filter(r=>r&&r.label===best[0]);
+  const avgConf=matching.reduce((s,r)=>s+r.confidence,0)/matching.length;
+  if(avgConf<CONF_MIN) return null;
+  return{label:best[0],confidence:avgConf};
+}
+
+// ═══════════════════════════════════════════
+// INTERPRETER  (AI-powered via backend WebSocket)
+// ═══════════════════════════════════════════
+async function startInterpreter(){
+  if(interpreterActive) return;
+  interpreterActive=true;
+  frameBuffer=[];
+  currentGlosses=[];
+  lastCommittedSign=null;
+  wsBufferedFrames=0;
+  lastFrameSentTime=0;
+
+  // Clear all display panels
+  document.getElementById('glossChips').innerHTML='';
+  document.getElementById('sentenceTL').textContent='';
+  document.getElementById('sentenceEN').textContent='';
+  document.getElementById('top5Chips').innerHTML='';
+  document.getElementById('confFill').style.width='0';
+  document.getElementById('confLabel').textContent='';
+  setSignLabel('Connecting to AI...','sm');
+
+  // Connect to backend WebSocket
+  connectWS();
+
+  const video=document.getElementById('videoEl');
+  const canvas=document.getElementById('canvasEl');
+  const ctx=canvas.getContext('2d');
+
+  if(typeof Holistic==='undefined'){showToast('MediaPipe Holistic not loaded');interpreterActive=false;return;}
+
+  // Use MediaPipe Holistic: detects FACE + HANDS simultaneously.
+  // Face landmarks let us compute hand position RELATIVE TO the face (e.g. "at forehead"
+  // vs "at chin") which is the key accuracy improvement for FSL signs like TATAY/NANAY.
+  handsDetector=new Holistic({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1635989137/${f}`
+  });
+  handsDetector.setOptions({
+    modelComplexity:1,
+    smoothLandmarks:true,
+    enableSegmentation:false,
+    refineFaceLandmarks:false,
+    minDetectionConfidence:0.55,
+    minTrackingConfidence:0.5
+  });
+
+  handsDetector.onResults(results=>{
+    if(!interpreterActive) return;
+    canvas.width=video.videoWidth||640;
+    canvas.height=video.videoHeight||480;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // ── Extract face reference points ─────────────────────────────────────
+    const fl=results.faceLandmarks;
+    let faceRef=null;
+    if(fl&&fl.length>=468){
+      // Key indices: 10=forehead, 4=nose tip, 13=upper lip, 152=chin bottom
+      const fh=fl[10].y, chin=fl[152].y;
+      const faceH=chin-fh;
+      if(faceH>0.04){  // face large enough in frame
+        faceRef={
+          forehead_y: fh,
+          nose_y:     fl[4].y,
+          mouth_y:    fl[13].y,
+          chin_y:     chin,
+          face_h:     faceH,
+          mouth_open: Math.abs(fl[13].y-fl[14].y) > 0.018,
+          // eyebrow raise: eyebrow above normal eye level
+          brow_raised: (fl[107].y-fl[33].y) < -0.015 || (fl[336].y-fl[263].y) < -0.015
+        };
+      }
+    }
+
+    // Draw face zone overlay (subtle horizontal lines showing FSL zones)
+    if(faceRef) drawFaceZones(ctx, faceRef, canvas.width, canvas.height);
+
+    // ── Build per-hand landmark data ──────────────────────────────────────
+    const handLms=[];
+
+    function buildHandData(lms, label){
+      if(!lms) return;
+      const wy=lms[0].y, wx=lms[0].x;
+      // Face-relative Y: 0=forehead, 1=chin, 2=chest, negative=above head
+      const relY = faceRef
+        ? (wy - faceRef.forehead_y) / faceRef.face_h
+        : wy;   // fallback: absolute if no face detected
+      drawHandSkeleton(ctx,lms,canvas.width,canvas.height);
+      // Draw wrist zone label
+      if(faceRef) drawZoneLabel(ctx, wx, wy, relY, canvas.width, canvas.height);
+      handLms.push({
+        wrist_y:    wy,
+        wrist_x:    wx,
+        relative_y: relY,        // ← face-normalised position (most important!)
+        label,
+        lms:     lms.map(p=>({x:p.x,y:p.y})),
+        tips:    [4,8,12,16,20].map(i=>({x:lms[i].x,y:lms[i].y})),
+        knuckles:[5,9,13,17].map(i=>({x:lms[i].x,y:lms[i].y})),
+        face_ref: faceRef        // send face context too
+      });
+    }
+
+    buildHandData(results.leftHandLandmarks,  'Left');
+    buildHandData(results.rightHandLandmarks, 'Right');
+
+    const hasHands = handLms.length > 0;
+
+    if(hasHands){
+      if(noHandFlushTimer){clearTimeout(noHandFlushTimer);noHandFlushTimer=null;}
+
+      const now=Date.now();
+      if(now-lastFrameSentTime>=FRAME_SEND_MS&&wsConn&&wsConn.readyState===1){
+        lastFrameSentTime=now;
+        const b64=captureJpeg(video);
+        if(b64){
+          wsConn.send(JSON.stringify({type:'frame',data:b64,lm:handLms,lang:'fil',mode:currentMode}));
+          wsBufferedFrames++;
+          const zone=faceRef?_zoneName(handLms[0].relative_y):'';
+          setSignLabel(`✋ ${zone?zone+' · ':''}Kumukuha... ipinigil ang kamay para i-translate`,'sm');
+          updateFrameBadge();
+          if(_teachCapturing) _feedTeachFrame(handLms);
+        }
+      }
+
+      noHandFlushTimer=setTimeout(()=>{
+        noHandFlushTimer=null;
+        if(wsBufferedFrames>0) flushToAI();
+      },NO_HAND_FLUSH_MS);
+
+    } else {
+      if(wsBufferedFrames>0&&!noHandFlushTimer){
+        noHandFlushTimer=setTimeout(()=>{
+          noHandFlushTimer=null;
+          if(wsBufferedFrames>0) flushToAI();
+        },NO_HAND_FLUSH_MS);
+      }
+      // Show hint if face detected but no hands
+      if(faceRef&&wsBufferedFrames===0){
+        setSignLabel('Mukha nakita ✓ — Ipakita ang iyong kamay','sm');
+      }
+    }
+  });
+
+  if(typeof Camera==='undefined'){showToast('Camera utils not loaded');interpreterActive=false;return;}
+
+  cameraObj=new Camera(video,{
+    onFrame:async()=>{if(handsDetector&&interpreterActive) await handsDetector.send({image:video});},
+    width:640,height:480
+  });
+  cameraObj.start().catch(e=>{showToast('Camera access denied');console.error(e);interpreterActive=false;});
+}
+
+function stopInterpreter(){
+  interpreterActive=false;
+  if(noHandFlushTimer){clearTimeout(noHandFlushTimer);noHandFlushTimer=null;}
+  if(cameraObj){try{cameraObj.stop();}catch(e){}cameraObj=null;}
+  if(handsDetector){try{handsDetector.close();}catch(e){}handsDetector=null;}
+  if(sentenceTimer){clearTimeout(sentenceTimer);sentenceTimer=null;}
+  if(wsConn){
+    try{wsConn.send(JSON.stringify({type:'reset'}));}catch(e){}
+    wsConn.close();wsConn=null;
+  }
+  frameBuffer=[];wsBufferedFrames=0;
+  setWsStatus(false);updateFrameBadge();
+  const video=document.getElementById('videoEl');
+  if(video&&video.srcObject){
+    video.srcObject.getTracks().forEach(t=>t.stop());
+    video.srcObject=null;
+  }
+}
+
+// ── WebSocket helpers ────────────────────────────────────────────────────────
+
+function connectWS(){
+  if(wsConn&&wsConn.readyState<=1) return;
+  wsConn=new WebSocket(WS_URL);
+  wsBufferedFrames=0;
+
+  wsConn.onopen=()=>{
+    console.log('WS connected:',WS_URL);
+    setWsStatus(true);
+    setSignLabel('Tukuyin ang iyong mga kamay sa camera','sm');
+  };
+
+  wsConn.onmessage=evt=>{
+    try{handleWSMessage(JSON.parse(evt.data));}catch(e){console.warn('WS parse:',e);}
+  };
+
+  wsConn.onclose=evt=>{
+    wsConn=null;
+    setWsStatus(false);
+    if(interpreterActive){
+      setSignLabel('Reconnecting...','sm');
+      setTimeout(connectWS,2000);
+    }
+  };
+
+  wsConn.onerror=()=>{
+    setWsStatus(false);
+    setSignLabel('Backend hindi available — i-run: python -m uvicorn app.main:app --port 9000','sm');
+  };
+}
+
+// Mode filter: returns true if this gloss/category is allowed in the current mode
+function _passesMode(gloss, tl){
+  if(currentMode==='all') return true;
+  const isNum  = /^[0-9]+$/.test(gloss);
+  const isLett = /^[A-Z]$/.test(gloss);
+  if(currentMode==='numbers') return isNum;
+  if(currentMode==='letters') return isLett;
+  if(currentMode==='words')   return !isNum && !isLett;
+  return true;
+}
+
+function handleWSMessage(msg){
+  if(msg.type==='sentence'){
+    let glosses=msg.glosses||[];
+    const tl=msg.sentence_fil||'';
+    const en=msg.sentence_en||'';
+    const conf=msg.confidence||'low';
+    wsBufferedFrames=0;
+    updateFrameBadge();
+
+    // ── Mode filter ───────────────────────────────────────────────────────
+    const primaryGloss = glosses[0]||'';
+    if(glosses.length && !_passesMode(primaryGloss, tl)){
+      const modeLabel = currentMode==='numbers'?'numero':currentMode==='letters'?'letra':'salita';
+      setSignLabel(`Mode: ${currentMode} — mag-sign ng ${modeLabel}`,'sm');
+      hidePronunciation();
+      return;
+    }
+
+    // ── Empty / unrecognised ──────────────────────────────────────────────
+    if(!tl && !glosses.length){
+      setSignLabel('Walang makitang signs — subukang muli','sm');
+      hidePronunciation();
+      return;
+    }
+    // Don't show the "not recognised" placeholder in the main display
+    if(primaryGloss==='?' && conf==='low'){
+      setSignLabel('Hindi makilala — subukan muli','sm');
+      hidePronunciation();
+      return;
+    }
+
+    // Populate currentGlosses so commit/copy/speak buttons work
+    currentGlosses=glosses.map(g=>({label:g,confidence:0.9}));
+
+    // Update sign display
+    setSignLabel(tl||glosses.join(' '),'lg');
+
+    // Confidence bar
+    const pct=conf==='high'?92:conf==='medium'?62:35;
+    const color=conf==='high'?'#22C55E':conf==='medium'?'#F59E0B':'#EF4444';
+    document.getElementById('confFill').style.width=pct+'%';
+    document.getElementById('confFill').style.background=color;
+    document.getElementById('confLabel').textContent=conf==='high'?'High':conf==='medium'?'Med':'Low';
+
+    // Top chips: confidence badge
+    document.getElementById('top5Chips').innerHTML=`<div class="chip best">AI · ${conf} confidence</div>`;
+
+    // Gloss chips
+    const gc=document.getElementById('glossChips');
+    gc.innerHTML='';
+    glosses.forEach(g=>{const c=document.createElement('div');c.className='gloss-chip';c.textContent=g;gc.appendChild(c);});
+
+    // Sentences
+    document.getElementById('sentenceTL').textContent=tl;
+    document.getElementById('sentenceEN').textContent=en;
+
+    // ── Pronunciation card ────────────────────────────────────────────────
+    showPronunciation(primaryGloss, tl);
+
+    // Show "Ituwid" (Correct) button so user can fix wrong detections
+    const cb=document.getElementById('correctBtn');
+    if(cb) cb.style.display='flex';
+
+    // ── Auto-speak & history ──────────────────────────────────────────────
+    if(tl||en){
+      const entry={id:Date.now(),glosses,tl:tl||glosses.join(' '),en:en||glosses.join(' '),time:new Date().toISOString()};
+      sessionHistory.unshift(entry);
+      if(sessionHistory.length>100) sessionHistory=sessionHistory.slice(0,100);
+      try{localStorage.setItem('fsl_history',JSON.stringify(sessionHistory));}catch(e){}
+      logSentenceFirestore(entry);
+      logDetection(primaryGloss||'AI',pct/100);
+      if(voiceEnabled) speakText(tl||en);
+    }
+
+  } else if(msg.type==='error'){
+    console.error('WS error:',msg.message);
+  }
+}
+
+function flushToAI(){
+  if(!wsConn||wsConn.readyState!==1||wsBufferedFrames===0){
+    if(wsBufferedFrames===0) setSignLabel('Walang frames — ipakita ang iyong kamay','sm');
+    return;
+  }
+  console.log('Flushing',wsBufferedFrames,'frames to AI');
+  wsConn.send(JSON.stringify({type:'flush'}));
+  setSignLabel('⏳ Tinatanong ang AI...','sm');
+  document.getElementById('top5Chips').innerHTML='<div class="chip">Sinusuri ang mga signs...</div>';
+  wsBufferedFrames=0;
+  updateFrameBadge();
+}
+
+function onDetectBtn(){
+  // If we have buffered frames, flush to AI immediately
+  if(wsBufferedFrames>0){
+    if(noHandFlushTimer){clearTimeout(noHandFlushTimer);noHandFlushTimer=null;}
+    flushToAI();
+  } else if(currentGlosses.length){
+    // If AI already returned a result, save it
+    saveSentenceToHistory();
+    clearSentence();
+    showToast('Nai-save!');
+  } else {
+    showToast('Ipakita ang iyong kamay sa camera');
+  }
+}
+
+function setWsStatus(connected){
+  const dot=document.getElementById('wsStatusDot');
+  const txt=document.getElementById('wsStatusText');
+  if(!dot||!txt) return;
+  dot.style.background=connected?'#22C55E':'#EF4444';
+  txt.textContent=connected?'AI handa':'Offline';
+}
+
+function updateFrameBadge(){
+  const el=document.getElementById('frameCountBadge');
+  if(!el) return;
+  el.textContent=wsBufferedFrames>0?`${wsBufferedFrames} frames`:'';
+}
+
+function captureJpeg(video){
+  if(!offscreenCanvas){
+    offscreenCanvas=document.createElement('canvas');
+    // 480×360 gives Claude enough detail to see hand position relative to face
+    offscreenCanvas.width=480;offscreenCanvas.height=360;
+  }
+  try{
+    offscreenCanvas.getContext('2d').drawImage(video,0,0,480,360);
+    return offscreenCanvas.toDataURL('image/jpeg',0.82).split(',')[1];
+  }catch(e){return null;}
+}
+
+function setSignLabel(text,size){
+  const el=document.getElementById('detectedSign');
+  el.textContent=text;
+  el.style.fontSize=size==='lg'?'28px':'13px';
+  el.style.fontWeight=size==='lg'?'800':'500';
+  el.style.letterSpacing=size==='lg'?'-0.5px':'0';
+  el.style.lineHeight=size==='lg'?'1.2':'1.5';
+}
+
+const CONNECTIONS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+
+function drawHandSkeleton(ctx,lms,w,h){
+  ctx.strokeStyle='rgba(37,99,235,0.85)';
+  ctx.lineWidth=2.5;
+  for(const [a,b] of CONNECTIONS){
+    ctx.beginPath();
+    ctx.moveTo(lms[a].x*w,lms[a].y*h);
+    ctx.lineTo(lms[b].x*w,lms[b].y*h);
+    ctx.stroke();
+  }
+  for(let i=0;i<lms.length;i++){
+    ctx.fillStyle=i===0?'#2563EB':'#F59E0B';
+    ctx.beginPath();
+    ctx.arc(lms[i].x*w,lms[i].y*h,i===0?5:3.5,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// ── Face zone visualisation ──────────────────────────────────────────────────
+// FSL sign zones relative to face (relative_y: 0=forehead, 1=chin)
+const _ZONE_DEFS=[
+  {min:-1.5, max: 0.05, label:'TATAY/LOLO zone',  color:'rgba(99,102,241,0.7)'},
+  {min: 0.05,max: 0.55, label:'Mata/Ilong',        color:'rgba(14,165,233,0.5)'},
+  {min: 0.55,max: 1.25, label:'NANAY/SALAMAT zone',color:'rgba(245,158,11,0.7)'},
+  {min: 1.25,max: 1.80, label:'Leeg/Balikat',      color:'rgba(255,255,255,0.25)'},
+  {min: 1.80,max: 3.50, label:'MAHAL/MASAYA zone', color:'rgba(34,197,94,0.5)'},
+];
+
+function drawFaceZones(ctx, faceRef, w, h){
+  const fh=faceRef.forehead_y, face_h=faceRef.face_h;
+
+  // Draw subtle horizontal guide lines at key face landmarks
+  const guides=[
+    {y:faceRef.forehead_y, color:'rgba(99,102,241,0.6)', label:'Noo'},
+    {y:faceRef.nose_y,     color:'rgba(14,165,233,0.5)', label:'Ilong'},
+    {y:faceRef.mouth_y,    color:'rgba(245,158,11,0.6)', label:'Bibig'},
+    {y:faceRef.chin_y,     color:'rgba(245,158,11,0.8)', label:'Baba'},
+  ];
+
+  ctx.save();
+  ctx.setLineDash([4,5]);
+  ctx.lineWidth=1;
+  guides.forEach(g=>{
+    const py=g.y*h;
+    ctx.strokeStyle=g.color;
+    ctx.beginPath();
+    ctx.moveTo(0,py);
+    ctx.lineTo(w,py);
+    ctx.stroke();
+    // Small label on the right
+    ctx.fillStyle=g.color;
+    ctx.font='bold 10px Poppins,sans-serif';
+    ctx.textAlign='right';
+    ctx.fillText(g.label, w-4, py-3);
+  });
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawZoneLabel(ctx, wx, wy, relY, w, h){
+  const zone=_ZONE_DEFS.find(z=>relY>=z.min&&relY<z.max);
+  if(!zone) return;
+  const px=wx*w, py=wy*h;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.roundRect(px-2, py-22, 110, 17, 4);
+  ctx.fill();
+  ctx.fillStyle=zone.color;
+  ctx.font='bold 9px Poppins,sans-serif';
+  ctx.textAlign='left';
+  ctx.fillText(zone.label, px+2, py-9);
+  ctx.restore();
+}
+
+function _zoneName(relY){
+  if(relY<0.05)  return 'Noo (TATAY)';
+  if(relY<0.55)  return 'Gitnang mukha';
+  if(relY<1.25)  return 'Baba/Bibig (NANAY)';
+  if(relY<1.80)  return 'Leeg';
+  return 'Dibdib';
+}
+
+function updateDetectionUI(res){
+  const v=VOCAB[res.label];
+  document.getElementById('detectedSign').textContent=v?v.tl.toUpperCase():res.label;
+  const pct=Math.round(res.confidence*100);
+  document.getElementById('confLabel').textContent=pct+'%';
+  const fill=document.getElementById('confFill');
+  fill.style.width=pct+'%';
+  fill.style.background=pct>=72?'#22C55E':pct>=50?'#F59E0B':'#EF4444';
+  const chips=document.getElementById('top5Chips');
+  chips.innerHTML='';
+  (res.top5||[]).forEach((t,i)=>{
+    const c=document.createElement('div');
+    c.className='chip'+(i===0?' best':'');
+    const vv=VOCAB[t.label];
+    c.textContent=`${vv?vv.tl:t.label} ${Math.round(t.conf*100)}%`;
+    chips.appendChild(c);
+  });
+}
+
+function clearDetectionUI(){
+  document.getElementById('detectedSign').textContent='—';
+  document.getElementById('confLabel').textContent='0%';
+  document.getElementById('confFill').style.width='0';
+  document.getElementById('top5Chips').innerHTML='';
+}
+
+// ═══════════════════════════════════════════
+// SENTENCE BUILDER
+// ═══════════════════════════════════════════
+function addGloss(label,confidence){
+  currentGlosses.push({label,confidence});
+  updateGlossUI();
+  resetSentenceTimer();
+  if(voiceEnabled) speakWord(label);
+  logDetection(label,confidence);
+}
+
+function updateGlossUI(){
+  const chips=document.getElementById('glossChips');
+  chips.innerHTML='';
+  currentGlosses.forEach(g=>{
+    const c=document.createElement('div');
+    c.className='gloss-chip';
+    c.textContent=g.label;
+    chips.appendChild(c);
+  });
+  if(currentGlosses.length>0){
+    const{tl,en}=buildSentence(currentGlosses);
+    document.getElementById('sentenceTL').textContent=tl;
+    document.getElementById('sentenceEN').textContent=en;
+  }else{
+    document.getElementById('sentenceTL').textContent='';
+    document.getElementById('sentenceEN').textContent='';
+  }
+}
+
+function buildSentence(glosses){
+  const tl=capitalize(glosses.map(g=>{const v=VOCAB[g.label];return v?v.tl:g.label.toLowerCase();}).join(' '));
+  const en=capitalize(glosses.map(g=>{const v=VOCAB[g.label];return v?v.en:g.label.toLowerCase();}).join(' '));
+  return{tl,en};
+}
+
+function capitalize(s){return s&&s.length?s[0].toUpperCase()+s.slice(1):s;}
+
+function resetSentenceTimer(){
+  if(sentenceTimer) clearTimeout(sentenceTimer);
+  if(currentGlosses.length>0) sentenceTimer=setTimeout(autoFlushSentence,2000);
+}
+
+function autoFlushSentence(){
+  if(!currentGlosses.length) return;
+  saveSentenceToHistory();
+  clearSentence();
+}
+
+function commitSentence(){
+  if(!currentGlosses.length) return;
+  saveSentenceToHistory();
+  clearSentence();
+  showToast('Sentence saved!');
+}
+
+function clearSentence(){
+  currentGlosses=[];
+  lastCommittedSign=null;
+  frameBuffer=[];
+  wsBufferedFrames=0;
+  if(noHandFlushTimer){clearTimeout(noHandFlushTimer);noHandFlushTimer=null;}
+  if(wsConn&&wsConn.readyState===1) wsConn.send(JSON.stringify({type:'reset'}));
+  document.getElementById('glossChips').innerHTML='';
+  document.getElementById('sentenceTL').textContent='';
+  document.getElementById('sentenceEN').textContent='';
+  document.getElementById('top5Chips').innerHTML='';
+  document.getElementById('confFill').style.width='0';
+  document.getElementById('confLabel').textContent='';
+  setSignLabel('Ready — show your hands','sm');
+  if(sentenceTimer){clearTimeout(sentenceTimer);sentenceTimer=null;}
+  hidePronunciation();
+  speechSynthesis&&speechSynthesis.cancel();
+  const cb=document.getElementById('correctBtn');
+  if(cb) cb.style.display='none';
+}
+
+function saveSentenceToHistory(){
+  // Prefer AI-provided sentences already shown in the UI
+  const tl=document.getElementById('sentenceTL').textContent||buildSentence(currentGlosses).tl;
+  const en=document.getElementById('sentenceEN').textContent||buildSentence(currentGlosses).en;
+  if(!tl&&!currentGlosses.length) return;
+  const entry={id:Date.now(),glosses:currentGlosses.map(g=>g.label),tl,en,time:new Date().toISOString()};
+  sessionHistory.unshift(entry);
+  if(sessionHistory.length>100) sessionHistory=sessionHistory.slice(0,100);
+  try{localStorage.setItem('fsl_history',JSON.stringify(sessionHistory));}catch(e){}
+  logSentenceFirestore(entry);
+}
+
+function copySentence(){
+  const tl=document.getElementById('sentenceTL').textContent;
+  if(!tl){showToast('Nothing to copy');return;}
+  navigator.clipboard?navigator.clipboard.writeText(tl).then(()=>showToast('Copied!')).catch(()=>showToast('Copy failed')):showToast('Copy not supported');
+}
+
+function speakSentence(){
+  const tl=document.getElementById('sentenceTL').textContent||document.getElementById('detectedSign').textContent;
+  if(!tl||tl==='—'){showToast('Nothing to speak');return;}
+  speakText(tl);
+}
+
+function speakWord(label){const v=VOCAB[label];if(v) speakText(v.tl);}
+
+// ═══════════════════════════════════════════
+// TEACHING / CORRECTION FEATURE
+// ═══════════════════════════════════════════
+let _teachMode = 'teach';          // 'teach' | 'correct'
+let _teachCaptures = [];           // collected lm_snapshots per capture
+let _teachCurrentCap = [];         // frames in the current active capture
+let _teachCapturing = false;
+let _teachCaptureCount = 0;
+const TEACH_CAPTURES_NEEDED = 3;   // captures required before save is enabled
+const TEACH_FRAMES_PER_CAP  = 20;  // landmark frames per capture window
+
+function openTeachPanel(mode) {
+  _teachMode = mode;
+  _teachCaptures = [];
+  _teachCurrentCap = [];
+  _teachCapturing = false;
+  _teachCaptureCount = 0;
+
+  // Pre-fill fields from current detection when correcting
+  if(mode === 'correct') {
+    const curTL = document.getElementById('sentenceTL').textContent || '';
+    const curEN = document.getElementById('sentenceEN').textContent || '';
+    const curGloss = (currentGlosses[0]||{}).label || '';
+    document.getElementById('teachFil').value   = '';   // user types the CORRECT word
+    document.getElementById('teachEn').value    = '';
+    document.getElementById('teachGloss').value = '';
+    document.getElementById('teachPanelTitle').textContent = 'Ituwid ang Detection';
+    document.getElementById('teachPanelBadge').textContent = 'CORRECTION';
+    document.getElementById('teachPanelBadge').style.background = '#DC2626';
+  } else {
+    document.getElementById('teachFil').value   = '';
+    document.getElementById('teachEn').value    = '';
+    document.getElementById('teachGloss').value = '';
+    document.getElementById('teachPanelTitle').textContent = 'Ituro ang Bagong Sign';
+    document.getElementById('teachPanelBadge').textContent = 'BAGO';
+    document.getElementById('teachPanelBadge').style.background = '#2563EB';
+  }
+
+  _resetTeachDots();
+  document.getElementById('teachSaveBtn').classList.remove('ready');
+  document.getElementById('teachCaptureBtn').className = 'teach-capture-btn';
+  document.getElementById('teachCaptureBtnText').textContent = `I-capture ang Sign (${TEACH_CAPTURES_NEEDED} beses)`;
+  document.getElementById('teachCaptureBtnIcon').textContent = '✋';
+  document.getElementById('teachPanel').classList.add('open');
+}
+
+function closeTeachPanel() {
+  _teachCapturing = false;
+  _teachCurrentCap = [];
+  document.getElementById('teachPanel').classList.remove('open');
+}
+
+function _resetTeachDots() {
+  for(let i=0;i<TEACH_CAPTURES_NEEDED;i++){
+    const d=document.getElementById('tdot'+i);
+    if(d){d.className='teach-dot';}
+  }
+}
+
+function _updateTeachDot(idx, state) {
+  // state: 'active' | 'filled'
+  const d=document.getElementById('tdot'+idx);
+  if(d) d.className='teach-dot '+(state||'');
+}
+
+// Called from handsDetector.onResults during teaching mode
+function _feedTeachFrame(lmData) {
+  if(!_teachCapturing || !lmData || !lmData.length) return;
+  _teachCurrentCap.push(lmData);
+
+  if(_teachCurrentCap.length >= TEACH_FRAMES_PER_CAP) {
+    // One capture complete
+    _teachCaptures.push([..._teachCurrentCap]);
+    _teachCurrentCap = [];
+    _teachCaptureCount++;
+
+    _updateTeachDot(_teachCaptureCount - 1, 'filled');
+    if(_teachCaptureCount < TEACH_CAPTURES_NEEDED) {
+      _updateTeachDot(_teachCaptureCount, 'active');
+      document.getElementById('teachCaptureBtnText').textContent =
+        `Capture ${_teachCaptureCount+1}/${TEACH_CAPTURES_NEEDED} — I-sign muli`;
+    } else {
+      // All captures done
+      _teachCapturing = false;
+      document.getElementById('teachCaptureBtn').className = 'teach-capture-btn done';
+      document.getElementById('teachCaptureBtnIcon').textContent = '✅';
+      document.getElementById('teachCaptureBtnText').textContent = 'Nakuha na! Pindutin I-save';
+      document.getElementById('teachSaveBtn').classList.add('ready');
+      showToast('Kumpleto na! I-save na ang sign.');
+    }
+  }
+}
+
+function startTeachCapture() {
+  if(_teachCaptureCount >= TEACH_CAPTURES_NEEDED) {
+    // Re-do: reset
+    _teachCaptures = [];
+    _teachCurrentCap = [];
+    _teachCaptureCount = 0;
+    _resetTeachDots();
+    document.getElementById('teachSaveBtn').classList.remove('ready');
+  }
+
+  _teachCurrentCap = [];
+  _teachCapturing = true;
+  _updateTeachDot(_teachCaptureCount, 'active');
+  document.getElementById('teachCaptureBtn').className = 'teach-capture-btn capturing';
+  document.getElementById('teachCaptureBtnIcon').textContent = '🔴';
+  document.getElementById('teachCaptureBtnText').textContent =
+    `Capture ${_teachCaptureCount+1}/${TEACH_CAPTURES_NEEDED} — I-sign ngayon...`;
+}
+
+async function saveTeachSign() {
+  const fil   = document.getElementById('teachFil').value.trim();
+  const en    = document.getElementById('teachEn').value.trim();
+  const rawGl = document.getElementById('teachGloss').value.trim().toUpperCase().replace(/\s+/g,'_');
+
+  if(!fil)   { showToast('Ilagay ang salitang Filipino'); return; }
+  if(!en)    { showToast('Ilagay ang English translation'); return; }
+  if(!rawGl) { showToast('Ilagay ang Gloss Label (UPPERCASE)'); return; }
+  if(_teachCaptures.length < TEACH_CAPTURES_NEEDED) {
+    showToast('I-capture muna ang sign nang '+TEACH_CAPTURES_NEEDED+' beses'); return;
+  }
+
+  // Flatten all captures into one list of snapshots
+  const allSnapshots = _teachCaptures.flat();
+
+  document.getElementById('teachSaveBtn').textContent = '⏳ Sine-save...';
+
+  try {
+    const res = await fetch(API_BASE+'/train/sign', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ gloss: rawGl, fil, en, lm_snapshots: allSnapshots })
+    });
+    const data = await res.json();
+    if(res.ok && data.success) {
+      showToast(`✅ Nai-save: ${fil} (${rawGl})`);
+      closeTeachPanel();
+      // If we're in My Signs screen, refresh list
+      if(document.getElementById('mysigns').style.display !== 'none') loadMySigns();
+    } else {
+      showToast('Error: ' + (data.detail || 'Hindi na-save'));
+    }
+  } catch(e) {
+    showToast('Network error — check server');
+    console.error(e);
+  }
+  document.getElementById('teachSaveBtn').textContent = '💾 I-save ang Sign';
+}
+
+// ── My Signs screen ──────────────────────────────────────────────────────────
+async function loadMySigns() {
+  const list = document.getElementById('mysignsList');
+  if(!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:30px;color:#94A3B8">Naglo-load...</div>';
+  try {
+    const res  = await fetch(API_BASE+'/train/signs');
+    const data = await res.json();   // array of SignMeta
+    if(!data.length) {
+      list.innerHTML = '<div class="mysigns-empty">Wala pang itinurong signs.<br>Gamitin ang ➕ Ituro button sa interpreter para magturo.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    data.forEach(sign => {
+      const card = document.createElement('div');
+      card.className = 'mysigns-card';
+      card.innerHTML = `
+        <div class="mysigns-icon">🤟</div>
+        <div class="mysigns-info">
+          <div class="mysigns-gloss">${sign.gloss}</div>
+          <div class="mysigns-words">${sign.fil} &nbsp;·&nbsp; ${sign.en}</div>
+          <div class="mysigns-count">${sign.sample_count} sample${sign.sample_count!==1?'s':''}</div>
+        </div>
+        <button class="mysigns-del" onclick="deleteMySign('${sign.gloss}',this)" title="Burahin">🗑</button>
+      `;
+      list.appendChild(card);
+    });
+  } catch(e) {
+    list.innerHTML = '<div class="mysigns-empty">Hindi ma-load — check server</div>';
+  }
+}
+
+async function deleteMySign(gloss, btn) {
+  if(!confirm(`Burahin ang "${gloss}"?`)) return;
+  btn.textContent = '...';
+  try {
+    const res = await fetch(API_BASE+'/train/sign/'+encodeURIComponent(gloss), {method:'DELETE'});
+    if(res.ok) { showToast('Nabura: '+gloss); loadMySigns(); }
+    else        { showToast('Hindi nabura'); btn.textContent = '🗑'; }
+  } catch(e)  { showToast('Network error'); btn.textContent = '🗑'; }
+}
+
+// ── Pronunciation data ───────────────────────────────────────────────────────
+// syl  : syllable breakdown shown on screen (· as separator)
+// guide: English phonetic approximation for Filipino learners
+// stress: syllable index that is stressed (0-based), optional
+const PRONUN = {
+  // Family
+  'TATAY':    {syl:'Ta · tay',      guide:'TAH-tie',        tl:'Tatay'},
+  'NANAY':    {syl:'Na · nay',      guide:'NAH-nigh',       tl:'Nanay'},
+  'LOLO':     {syl:'Lo · lo',       guide:'LOH-lo',         tl:'Lolo'},
+  'LOLA':     {syl:'Lo · la',       guide:'LOH-la',         tl:'Lola'},
+  'ANAK':     {syl:'A · nak',       guide:'AH-nak',         tl:'Anak'},
+  'KAPATID':  {syl:'Ka · pa · tid', guide:'kah-PAH-tid',    tl:'Kapatid'},
+  'PAMILYA':  {syl:'Pa · mil · ya', guide:'pah-MIL-yah',    tl:'Pamilya'},
+  // Greetings
+  'SALAMAT':  {syl:'Sa · la · mat', guide:'sah-LAH-mat',    tl:'Salamat'},
+  'KUMUSTA':  {syl:'Ku · mus · ta', guide:'koo-MOOS-tah',   tl:'Kumusta'},
+  'PAALAM':   {syl:'Pa · a · lam',  guide:'pah-AH-lam',     tl:'Paalam'},
+  'PAUMANHIN':{syl:'Pa · u · man · hin', guide:'pah-oo-MAN-hin', tl:'Paumanhin'},
+  // Common
+  'OO':       {syl:'O · o',         guide:'OH-oh',          tl:'Oo'},
+  'HINDI':    {syl:'Hin · di',      guide:'HIN-dee',        tl:'Hindi'},
+  'KUMAIN':   {syl:'Ku · ma · in',  guide:'koo-MAH-in',     tl:'Kumain'},
+  'UMINOM':   {syl:'U · mi · nom',  guide:'oo-mee-NOM',     tl:'Uminom'},
+  'TUBIG':    {syl:'Tu · big',      guide:'too-BIG',        tl:'Tubig'},
+  'MABUTI':   {syl:'Ma · bu · ti',  guide:'mah-BOO-tee',    tl:'Mabuti'},
+  'TULONG':   {syl:'Tu · long',     guide:'too-LONG',       tl:'Tulong'},
+  'BAHAY':    {syl:'Ba · hay',      guide:'bah-HIGH',       tl:'Bahay'},
+  'GUSTO':    {syl:'Gus · to',      guide:'GOOS-toh',       tl:'Gusto'},
+  'WALA':     {syl:'Wa · la',       guide:'wah-LAH',        tl:'Wala'},
+  // Emotions
+  'MAHAL':    {syl:'Ma · hal',      guide:'mah-HAHL',       tl:'Mahal'},
+  'MASAYA':   {syl:'Ma · sa · ya',  guide:'mah-sah-YAH',    tl:'Masaya'},
+  'MALUNGKOT':{syl:'Ma · lung · kot', guide:'mah-LOONG-kot', tl:'Malungkot'},
+  'GALIT':    {syl:'Ga · lit',      guide:'gah-LIT',        tl:'Galit'},
+  'MAGANDA':  {syl:'Ma · gan · da', guide:'mah-GAHN-dah',   tl:'Maganda'},
+  // Health
+  'SAKIT':    {syl:'Sa · kit',      guide:'sah-KIT',        tl:'Sakit'},
+  'DOKTOR':   {syl:'Dok · tor',     guide:'DOK-tor',        tl:'Doktor'},
+  'OSPITAL':  {syl:'Os · pi · tal', guide:'os-pee-TAHL',    tl:'Ospital'},
+  // Numbers
+  '1':  {syl:'I · sa',       guide:'EE-sah',      tl:'Isa'},
+  '2':  {syl:'Da · la · wa', guide:'dah-lah-WAH', tl:'Dalawa'},
+  '3':  {syl:'Tat · lo',     guide:'TAHT-loh',    tl:'Tatlo'},
+  '4':  {syl:'A · pat',      guide:'AH-paht',     tl:'Apat'},
+  '5':  {syl:'Li · ma',      guide:'LEE-mah',     tl:'Lima'},
+  '6':  {syl:'A · nim',      guide:'AH-neem',     tl:'Anim'},
+  '10': {syl:'Sam · pu',     guide:'sahm-POO',    tl:'Sampu'},
+  // Letters — generic
+};
+// Auto-fill letters
+'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l=>{
+  if(!PRONUN[l]) PRONUN[l]={syl:l, guide:l+' (letter)', tl:l.toLowerCase()};
+});
+
+function showPronunciation(gloss, filText){
+  const p = PRONUN[gloss] || null;
+  const card = document.getElementById('pronunCard');
+  const sylEl = document.getElementById('pronunSyllables');
+  const guideEl = document.getElementById('pronunGuide');
+
+  // Use the Filipino sentence as the text to speak
+  _lastPronunText = filText || (p ? p.tl : gloss) || '';
+
+  if(p){
+    // Build syllable HTML with styled separators
+    const parts = p.syl.split('·').map(s=>s.trim());
+    sylEl.innerHTML = parts.map((s,i)=>
+      (i>0?'<span class="sep"> · </span>':'')+
+      `<span>${s}</span>`
+    ).join('');
+    guideEl.textContent = 'Pagbigkas: ' + p.guide;
+    card.classList.add('show');
+  } else if(filText){
+    sylEl.textContent = filText;
+    guideEl.textContent = '';
+    card.classList.add('show');
+  } else {
+    card.classList.remove('show');
+  }
+}
+
+function hidePronunciation(){
+  document.getElementById('pronunCard').classList.remove('show');
+  _lastPronunText='';
+}
+
+function pronunSpeak(rate){
+  if(!_lastPronunText) return;
+  if(!window.speechSynthesis){showToast('TTS not supported');return;}
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(_lastPronunText);
+  u.lang = 'fil-PH';
+  u.rate = rate || 1;
+  // Try to find a Filipino/Tagalog voice; fall back to default
+  const voices = speechSynthesis.getVoices();
+  const filVoice = voices.find(v=>v.lang.startsWith('fil')||v.lang.startsWith('tl'))
+                || voices.find(v=>v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+                || null;
+  if(filVoice) u.voice = filVoice;
+  speechSynthesis.speak(u);
+}
+
+function speakText(text, rate){
+  if(!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='fil-PH';
+  u.rate = rate || 1;
+  const voices = speechSynthesis.getVoices();
+  const filVoice = voices.find(v=>v.lang.startsWith('fil')||v.lang.startsWith('tl')) || null;
+  if(filVoice) u.voice = filVoice;
+  speechSynthesis.speak(u);
+}
+
+function toggleVoice(){
+  voiceEnabled=!voiceEnabled;
+  const btn=document.getElementById('voiceToggle');
+  btn.className='voice-toggle'+(voiceEnabled?' on':'');
+  btn.textContent=voiceEnabled?'🔊 Auto':'🔇 Auto';
+}
+
+function setMode(mode,btn){
+  currentMode=mode;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  frameBuffer=[];
+  lastCommittedSign=null;
+}
+
+// ═══════════════════════════════════════════
+// DICTIONARY
+// ═══════════════════════════════════════════
+function renderDict(){
+  const grid=document.getElementById('dictGrid');
+  grid.innerHTML='';
+  const search=dictSearchTerm.toLowerCase();
+  const entries=Object.entries(VOCAB).filter(([lbl,v])=>{
+    if(dictCategory!=='all'&&v.cat!==dictCategory) return false;
+    if(search&&!lbl.toLowerCase().includes(search)&&!v.tl.includes(search)&&!v.en.includes(search)) return false;
+    return true;
+  });
+  if(!entries.length){grid.innerHTML='<div class="loading" style="grid-column:span 2">No signs found</div>';return;}
+  entries.forEach(([lbl,v])=>{
+    const card=document.createElement('div');
+    card.className='dict-card';
+    card.innerHTML=`<div class="dict-gloss">${lbl}</div><div class="dict-tl">${v.tl}</div><div class="dict-en">${v.en}</div><div class="dict-cat-badge">${v.cat}</div>`;
+    card.onclick=()=>openDictSheet(lbl,v);
+    grid.appendChild(card);
+  });
+}
+
+function filterDict(){
+  dictSearchTerm=document.getElementById('dictSearch').value;
+  renderDict();
+}
+
+function filterDictCat(cat,btn){
+  dictCategory=cat;
+  document.querySelectorAll('.cat-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDict();
+}
+
+function openDictSheet(lbl,v){
+  document.getElementById('sheetSign').textContent=lbl;
+  document.getElementById('sheetTL').textContent=v.tl;
+  document.getElementById('sheetEN').textContent=v.en;
+  document.getElementById('sheetDesc').textContent=v.desc||'No description available.';
+  document.getElementById('dictSheet').classList.add('open');
+}
+
+function closeDictSheet(e){
+  if(e&&e.target!==document.getElementById('dictSheet')) return;
+  document.getElementById('dictSheet').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════
+// LEARN
+// ═══════════════════════════════════════════
+const LESSONS=[
+  {title:'Finger Alphabet',sub:'A to Z manual alphabet',icon:'🤌',color:'#EFF6FF',cat:'letters'},
+  {title:'Numbers 1–10',sub:'Count with your hands',icon:'🔢',color:'#FFF7ED',cat:'numbers'},
+  {title:'Family Signs',sub:'Nanay, Tatay, and more',icon:'👨‍👩‍👧',color:'#F0FDF4',cat:'family'},
+  {title:'Greetings',sub:'Kumusta, Salamat, Paalam',icon:'👋',color:'#FDF4FF',cat:'greetings'},
+  {title:'Common Words',sub:'Yes, No, Help, and more',icon:'💬',color:'#FFF1F2',cat:'common'},
+  {title:'Emotions',sub:'Happy, Sad, Love...',icon:'❤️',color:'#FFFBEB',cat:'emotions'},
+];
+
+function renderLearn(){
+  const grid=document.getElementById('learnGrid');
+  grid.innerHTML='';
+  const progs=[72,60,45,55,38,30];
+  LESSONS.forEach((lesson,i)=>{
+    const total=Object.values(VOCAB).filter(v=>v.cat===lesson.cat).length;
+    const p=progs[i];
+    const card=document.createElement('div');
+    card.className='lesson-card';
+    card.innerHTML=`<div class="lesson-icon" style="background:${lesson.color}">${lesson.icon}</div><div class="lesson-info"><div class="lesson-title">${lesson.title}</div><div class="lesson-sub">${lesson.sub} · ${total} signs</div><div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div></div><div class="lesson-badge">${p}%</div>`;
+    card.onclick=()=>showToast('Interactive lessons coming soon!');
+    grid.appendChild(card);
+  });
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+function renderHistory(){
+  const list=document.getElementById('historyList');
+  list.innerHTML='';
+  if(!sessionHistory.length){list.innerHTML='<div class="loading">No history yet. Start interpreting!</div>';return;}
+  sessionHistory.forEach(entry=>{
+    const el=document.createElement('div');
+    el.className='history-item';
+    const t=new Date(entry.time);
+    const ts=t.toLocaleDateString()+' '+t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    el.innerHTML=`<div class="hist-time">${ts}</div><div class="hist-tl">${entry.tl}</div><div class="hist-en">${entry.en}</div><div class="hist-glosses">${(entry.glosses||[]).map(g=>`<span class="hist-chip">${g}</span>`).join('')}</div>`;
+    list.appendChild(el);
+  });
+}
+
+function clearHistory(){
+  sessionHistory=[];
+  try{localStorage.removeItem('fsl_history');}catch(e){}
+  renderHistory();
+  showToast('History cleared');
+}
+
+// ═══════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════
+async function renderAnalytics(){
+  const s=localStats;
+  const acc=s.detections>0?Math.round((s.correct/s.detections)*100):0;
+  document.getElementById('anDetections').textContent=s.detections||0;
+  document.getElementById('anAccuracy').textContent=acc+'%';
+  document.getElementById('anDays').textContent=(s.days||[]).length||0;
+
+  const signCounts={};
+  sessionHistory.forEach(h=>(h.glosses||[]).forEach(g=>{signCounts[g]=(signCounts[g]||0)+1;}));
+  const top=Object.entries(signCounts).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('anTopSign').textContent=top?top[0]:'—';
+
+  // 7-day line chart
+  const days=[],counts=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    days.push(d.toLocaleDateString('en',{month:'short',day:'numeric'}));
+    const ds=d.toDateString();
+    counts.push(sessionHistory.filter(h=>new Date(h.time).toDateString()===ds).length);
+  }
+  destroyChart('lineChart');
+  chartInstances.lineChart=new Chart(document.getElementById('lineChart'),{
+    type:'line',
+    data:{labels:days,datasets:[{label:'Translations',data:counts,borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,0.1)',fill:true,tension:0.4,pointBackgroundColor:'#2563EB',pointRadius:4}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+
+  // Top signs bar
+  const topSigns=Object.entries(signCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('barChart');
+  if(topSigns.length){
+    chartInstances.barChart=new Chart(document.getElementById('barChart'),{
+      type:'bar',
+      data:{labels:topSigns.map(([l])=>l),datasets:[{data:topSigns.map(([,c])=>c),backgroundColor:'#2563EB',borderRadius:6}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+    });
+  }
+
+  // Doughnut
+  const correct=s.correct||0;
+  const total=s.detections||0;
+  const incorrect=Math.max(0,total-correct-Math.floor(total*0.1));
+  const unsure=Math.max(0,total-correct-incorrect);
+  destroyChart('doughnutChart');
+  chartInstances.doughnutChart=new Chart(document.getElementById('doughnutChart'),{
+    type:'doughnut',
+    data:{labels:['Correct','Incorrect','Unsure'],datasets:[{data:[correct||1,incorrect,unsure],backgroundColor:['#22C55E','#EF4444','#F59E0B']}]},
+    options:{responsive:true,plugins:{legend:{position:'bottom'}}}
+  });
+
+  // Logs table
+  const tbody=document.getElementById('logsBody');
+  tbody.innerHTML='';
+  sessionHistory.slice(0,10).forEach(h=>{
+    const tr=document.createElement('tr');
+    const t=new Date(h.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    tr.innerHTML=`<td>${h.tl||'—'}</td><td>—</td><td>${t}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Firestore logs
+  if(window._db&&window._currentUser&&window._fbFns){
+    try{
+      const{collection,query:q,where,orderBy,limit,getDocs}=window._fbFns;
+      const snap=await getDocs(q(collection(window._db,'usage_logs'),where('uid','==',window._currentUser.uid),orderBy('timestamp','desc'),limit(20)));
+      if(!snap.empty){
+        tbody.innerHTML='';
+        snap.forEach(doc=>{
+          const d=doc.data();
+          const tr=document.createElement('tr');
+          const t=d.timestamp?new Date(d.timestamp.toDate()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'—';
+          tr.innerHTML=`<td>${d.sign||'—'}</td><td>${d.confidence?Math.round(d.confidence*100)+'%':'—'}</td><td>${t}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+    }catch(e){console.warn('Firestore analytics:',e);}
+  }
+}
+
+function destroyChart(id){if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}}
+
+// ═══════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════
+function refreshProfile(){
+  const user=window._currentUser;
+  if(!user) return;
+  const name=user.displayName||user.email.split('@')[0];
+  document.getElementById('profileName').textContent=name;
+  document.getElementById('profileEmail').textContent=user.email;
+  document.getElementById('profileAvatar').textContent=(name[0]||'?').toUpperCase();
+  const s=localStats;
+  const acc=s.detections>0?Math.round((s.correct/s.detections)*100):0;
+  document.getElementById('profDetections').textContent=s.detections||0;
+  document.getElementById('profAccuracy').textContent=acc+'%';
+  document.getElementById('profDays').textContent=(s.days||[]).length||0;
+}
+
+function editName(){
+  const user=window._currentUser;
+  if(!user) return;
+  showModal('Edit Name',`<div class="form-group"><label class="form-label">New Name</label><input id="newNameInput" class="form-input" value="${user.displayName||''}"/></div>`,'Save',async()=>{
+    const n=document.getElementById('newNameInput').value.trim();
+    if(!n){showToast('Name cannot be empty');return;}
+    await window._fbFns.updateProfile(user,{displayName:n});
+    window._currentUser.displayName=n;
+    refreshProfile();refreshHome();
+    showToast('Name updated!');closeModal();
+  });
+}
+
+function changePassword(){
+  showModal('Change Password',`<div class="form-group"><label class="form-label">Current Password</label><input id="curPassInput" type="password" class="form-input"/></div><div class="form-group" style="margin-top:10px"><label class="form-label">New Password</label><input id="newPassInput" type="password" class="form-input" placeholder="Min 6 characters"/></div>`,'Change',async()=>{
+    const cur=document.getElementById('curPassInput').value;
+    const nw=document.getElementById('newPassInput').value;
+    const user=window._currentUser;
+    if(!cur||!nw||nw.length<6){showToast('Check password fields');return;}
+    try{
+      const{EmailAuthProvider,reauthenticateWithCredential,updatePassword}=window._fbFns;
+      const cred=EmailAuthProvider.credential(user.email,cur);
+      await reauthenticateWithCredential(user,cred);
+      await updatePassword(user,nw);
+      showToast('Password changed!');closeModal();
+    }catch(e){showToast(friendlyError(e.code));}
+  });
+}
+
+// ═══════════════════════════════════════════
+// FIREBASE LOGGING
+// ═══════════════════════════════════════════
+async function logDetection(sign,confidence){
+  if(!localStats.days) localStats.days=[];
+  localStats.detections=(localStats.detections||0)+1;
+  if(confidence>=CONF_MIN) localStats.correct=(localStats.correct||0)+1;
+  const today=new Date().toDateString();
+  if(!localStats.days.includes(today)) localStats.days.push(today);
+  saveStats();
+  updateStatDisplays();
+
+  if(!window._db||!window._currentUser||!window._fbFns) return;
+  try{
+    const{collection,addDoc,Timestamp}=window._fbFns;
+    await addDoc(collection(window._db,'usage_logs'),{uid:window._currentUser.uid,sign,confidence,timestamp:Timestamp.now()});
+  }catch(e){}
+}
+
+async function logSentenceFirestore(entry){
+  if(!window._db||!window._currentUser||!window._fbFns) return;
+  try{
+    const{collection,addDoc,Timestamp}=window._fbFns;
+    await addDoc(collection(window._db,'impact_logs'),{uid:window._currentUser.uid,tl:entry.tl,en:entry.en,glosses:entry.glosses,timestamp:Timestamp.now()});
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════
+// MODAL & TOAST
+// ═══════════════════════════════════════════
+function showModal(title,body,confirmText,cb){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalBody').innerHTML=body;
+  document.getElementById('modalConfirm').textContent=confirmText||'Confirm';
+  modalConfirmCb=cb;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');modalConfirmCb=null;}
+function closeModalOverlay(e){if(e.target===document.getElementById('modalOverlay')) closeModal();}
+document.getElementById('modalConfirm').onclick=()=>{if(modalConfirmCb) modalConfirmCb();};
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+// Expose globals
+window.showScreen=showScreen;
+window.navTo=navTo;
+window.onboardNext=onboardNext;
+window.doLogin=doLogin;
+window.doRegister=doRegister;
+window.doLogout=doLogout;
+window.filterDict=filterDict;
+window.filterDictCat=filterDictCat;
+window.closeDictSheet=closeDictSheet;
+window.clearHistory=clearHistory;
+window.commitSentence=commitSentence;
+window.clearSentence=clearSentence;
+window.copySentence=copySentence;
+window.speakSentence=speakSentence;
+window.toggleVoice=toggleVoice;
+window.setMode=setMode;
+window.closeModal=closeModal;
+window.closeModalOverlay=closeModalOverlay;
+window.editName=editName;
+window.changePassword=changePassword;
+window.stopInterpreter=stopInterpreter;
+window.onDetectBtn=onDetectBtn;
+
+// Set greeting
+const _h=new Date().getHours();
+const _greet=document.getElementById('timeGreeting');
+if(_greet) _greet.textContent=_h<12?'morning':_h<17?'afternoon':'evening';
+
+// Splash timer
+setTimeout(()=>{
+  if(currentScreen==='splash'){
+    if(window._currentUser) afterLogin();
+    else showScreen('welcome');
+  }
+},2500);
+
+// Preload dataset
+loadDataset();
+</script>
+</body>
+</html>

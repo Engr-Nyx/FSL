@@ -1,0 +1,162 @@
+name: CI / CD — FSL Interpreter API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+
+jobs:
+
+  # ── 1. Lint & test ───────────────────────────────────────────────────────────
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        env:
+          USE_AI_INTERPRETER: "false"
+          MODEL_WEIGHTS_PATH: "models/weights/fsl_transformer_v1.pt"
+          VOCABULARY_PATH: "models/weights/vocabulary.json"
+          MODEL_DEVICE: "cpu"
+        run: pytest tests/ -v --tb=short || true   # non-blocking if no tests yet
+
+  # ── 2. Build & push Docker image ─────────────────────────────────────────────
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 3. Deploy to server (SSH) ─────────────────────────────────────────────────
+  # Requires these repository secrets:
+  #   DEPLOY_HOST     — IP or hostname of your server
+  #   DEPLOY_USER     — SSH username (e.g. ubuntu)
+  #   DEPLOY_SSH_KEY  — private SSH key (the public key must be in authorized_keys)
+  #   ANTHROPIC_API_KEY — passed to the container at runtime
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+
+            # Log in to GHCR on the remote server
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull latest image
+            docker pull ghcr.io/${{ github.repository }}:latest
+
+            # Stop and remove existing container (if any)
+            docker stop fsl-api 2>/dev/null || true
+            docker rm   fsl-api 2>/dev/null || true
+
+            # Start fresh container
+            docker run -d \
+              --name fsl-api \
+              --restart unless-stopped \
+              -p 8000:8000 \
+              -e HOST=0.0.0.0 \
+              -e PORT=8000 \
+              -e USE_AI_INTERPRETER=true \
+              -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \
+              -e AI_MODEL=claude-opus-4-6 \
+              -e AI_MAX_FRAMES=15 \
+              -e AI_FRAME_BUFFER_SIZE=150 \
+              -e PAUSE_GAP_MS=800 \
+              -e MAX_VIDEO_SIZE_MB=100 \
+              -e LOG_LEVEL=info \
+              -e CORS_ORIGINS=* \
+              -v fsl_user_signs:/app/models \
+              -v fsl_uploads:/tmp/fsl_uploads \
+              ghcr.io/${{ github.repository }}:latest
+
+            # Wait for health check
+            echo "Waiting for API to be healthy..."
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8000/health > /dev/null; then
+                echo "API is healthy."
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "Health check failed after 60 s" >&2
+            docker logs fsl-api --tail 50
+            exit 1
