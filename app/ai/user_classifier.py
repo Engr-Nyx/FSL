@@ -1,6 +1,6 @@
 """User-trained sign classifier.
 
-Stores personalized FSL sign samples in models/user_signs.json.
+Stores personalised FSL sign samples in the SQLite database (data/fsl.db).
 Priority in the recognition pipeline:
   1. UserClassifier  ← this file (highest — user corrections override everything)
   2. LandmarkClassifier (rule-based)
@@ -12,16 +12,11 @@ the match is robust to per-frame noise.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
-import os
-from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
-
-_DB_PATH = os.path.join("models", "user_signs.json")
 
 
 # ── Feature extraction ────────────────────────────────────────────────────────
@@ -43,7 +38,6 @@ def _extract_features(lm_snapshots: list) -> Optional[dict]:
 
     n = len(hand_obs)
 
-    # Prefer face-relative Y when the holistic detector provided it
     rel_ys = [h["relative_y"] for h in hand_obs if "relative_y" in h]
     use_relative = len(rel_ys) >= n * 0.5
     if use_relative:
@@ -60,30 +54,21 @@ def _extract_features(lm_snapshots: list) -> Optional[dict]:
     return {
         "avg_y":        avg_y,
         "avg_x":        avg_x,
-        "extensions":   avg_ext,      # [thumb, index, middle, ring, pinky] 0–1
+        "extensions":   avg_ext,
         "open_ratio":   open_ratio,
-        "use_relative": use_relative, # True = face-relative Y scale
+        "use_relative": use_relative,
     }
 
 
 def _distance(f1: dict, f2: dict) -> float:
-    """Weighted Euclidean distance between two feature vectors.
-
-    Weights reflect how discriminative each dimension is for FSL:
-    • Y-position is the primary family-sign distinguisher (TATAY vs NANAY).
-    • Finger extensions are the primary shape distinguisher (letters, numbers).
-
-    When both vectors use the same Y coordinate system (both face-relative or
-    both absolute) the full Y weight (2.5) is applied.  When they differ the
-    weight is reduced to 0.5 because the two scales are not directly comparable.
-    """
+    """Weighted Euclidean distance between two feature vectors."""
     same_coord = f1.get("use_relative", False) == f2.get("use_relative", False)
     y_weight = 2.5 if same_coord else 0.5
 
-    dy  = (f1["avg_y"] - f2["avg_y"]) * y_weight
-    dx  = (f1["avg_x"] - f2["avg_x"]) * 0.4
-    do  = (f1["open_ratio"] - f2["open_ratio"]) * 0.8
-    de  = sum(
+    dy = (f1["avg_y"] - f2["avg_y"]) * y_weight
+    dx = (f1["avg_x"] - f2["avg_x"]) * 0.4
+    do = (f1["open_ratio"] - f2["open_ratio"]) * 0.8
+    de = sum(
         (a - b) ** 2 * 1.4
         for a, b in zip(f1["extensions"], f2["extensions"])
     )
@@ -92,20 +77,24 @@ def _distance(f1: dict, f2: dict) -> float:
 
 # ── Database helpers ──────────────────────────────────────────────────────────
 
+def _get_session():
+    from app.database.engine import SessionLocal
+    return SessionLocal()
+
+
 def _load_db() -> dict:
-    if os.path.exists(_DB_PATH):
+    """Load all user signs from SQLite into a dict keyed by gloss."""
+    try:
+        from app.database.crud import list_signs
+        session = _get_session()
         try:
-            with open(_DB_PATH, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as exc:
-            logger.warning("user_classifier: could not read DB: %s", exc)
-    return {}
-
-
-def _save_db(db: dict) -> None:
-    os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
-    with open(_DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=2)
+            signs = list_signs(session)
+            return {s["gloss"]: s for s in signs}
+        finally:
+            session.close()
+    except Exception as exc:
+        logger.warning("user_classifier: could not read DB: %s", exc)
+        return {}
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -127,29 +116,34 @@ def train_sign(
         return False
 
     gloss_key = gloss.upper().strip()
-    db = _load_db()
 
-    if gloss_key not in db:
-        db[gloss_key] = {
-            "gloss":      gloss_key,
-            "fil":        fil,
-            "en":         en,
-            "samples":    [],
-            "trained_at": datetime.now(timezone.utc).isoformat(),
-        }
+    try:
+        from app.database.crud import get_sign, save_sign
+        session = _get_session()
+        try:
+            import json
+            existing = get_sign(session, gloss_key)
+            if existing:
+                try:
+                    samples = json.loads(existing.samples_json or "[]")
+                except Exception:
+                    samples = []
+            else:
+                samples = []
 
-    entry = db[gloss_key]
-    entry["fil"] = fil
-    entry["en"]  = en
-    entry["samples"].append(features)
-    entry["samples"] = entry["samples"][-15:]   # keep newest 15
-    entry["trained_at"] = datetime.now(timezone.utc).isoformat()
+            samples.append(features)
+            samples = samples[-15:]   # keep newest 15
 
-    _save_db(db)
-    logger.info(
-        "train_sign: saved %s (%d samples total)", gloss_key, len(entry["samples"])
-    )
-    return True
+            save_sign(session, gloss_key, fil, en, samples)
+            logger.info(
+                "train_sign: saved %s (%d samples total)", gloss_key, len(samples)
+            )
+            return True
+        finally:
+            session.close()
+    except Exception as exc:
+        logger.error("train_sign: DB error: %s", exc)
+        return False
 
 
 def classify(lm_snapshots: list) -> Optional[dict]:
@@ -169,7 +163,7 @@ def classify(lm_snapshots: list) -> Optional[dict]:
     best_entry = None
 
     for entry in db.values():
-        for sample in entry["samples"]:
+        for sample in entry.get("samples", []):
             d = _distance(features, sample)
             if d < best_dist:
                 best_dist = d
@@ -201,7 +195,7 @@ def list_signs() -> list[dict]:
             "gloss":        v["gloss"],
             "fil":          v["fil"],
             "en":           v["en"],
-            "sample_count": len(v["samples"]),
+            "sample_count": len(v.get("samples", [])),
             "trained_at":   v.get("trained_at", ""),
         }
         for v in db.values()
@@ -210,11 +204,14 @@ def list_signs() -> list[dict]:
 
 def delete_sign(gloss: str) -> bool:
     """Remove a user-trained sign.  Returns True if it existed."""
-    gloss_key = gloss.upper().strip()
-    db = _load_db()
-    if gloss_key in db:
-        del db[gloss_key]
-        _save_db(db)
-        logger.info("user_classifier: deleted %s", gloss_key)
-        return True
-    return False
+    try:
+        from app.database.crud import delete_sign as db_delete
+        session = _get_session()
+        try:
+            result = db_delete(session, gloss)
+            return result
+        finally:
+            session.close()
+    except Exception as exc:
+        logger.error("delete_sign: DB error: %s", exc)
+        return False

@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
+import json
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,8 +22,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _init_database() -> None:
+    """Create all SQLite tables and migrate legacy user_signs.json if present."""
+    from app.database.engine import Base, engine, SessionLocal
+    from app.database import models  # noqa: F401 — registers ORM models
+
+    Base.metadata.create_all(bind=engine)
+    logger.info("DB: tables ready (SQLite)")
+
+    # One-time migration: import existing user_signs.json into SQLite
+    legacy_path = os.path.join("models", "user_signs.json")
+    if os.path.exists(legacy_path):
+        try:
+            with open(legacy_path, encoding="utf-8") as f:
+                legacy = json.load(f)
+            if legacy:
+                from app.database.crud import get_sign, save_sign
+                session = SessionLocal()
+                try:
+                    migrated = 0
+                    for gloss_key, entry in legacy.items():
+                        if not get_sign(session, gloss_key):
+                            save_sign(
+                                session,
+                                gloss=entry.get("gloss", gloss_key),
+                                fil=entry.get("fil", ""),
+                                en=entry.get("en", ""),
+                                samples=entry.get("samples", []),
+                            )
+                            migrated += 1
+                    logger.info("DB: migrated %d signs from user_signs.json", migrated)
+                finally:
+                    session.close()
+                # Rename legacy file so migration won't run again
+                os.rename(legacy_path, legacy_path + ".migrated")
+        except Exception as exc:
+            logger.warning("DB: could not migrate user_signs.json: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _init_database()
     if settings.use_ai_interpreter and settings.anthropic_api_key:
         logger.info("FSL API starting — interpreter=Claude Vision (model=%s)", settings.ai_model)
         try:
@@ -68,10 +109,23 @@ app.include_router(training_router)
 app.include_router(ws_router, tags=["stream"])
 
 # ── Serve frontend static files if they exist ─────────────────────────────────
-import os
 if os.path.exists("index.html"):
     from fastapi.responses import FileResponse
 
     @app.get("/")
     async def serve_frontend():
         return FileResponse("index.html")
+
+if os.path.exists("fsl_embedded_data.js"):
+    from fastapi.responses import FileResponse as _FR
+
+    @app.get("/fsl_embedded_data.js")
+    async def serve_fsl_embedded():
+        return _FR("fsl_embedded_data.js", media_type="application/javascript")
+
+if os.path.exists("dataset.json"):
+    from fastapi.responses import FileResponse as _FR2
+
+    @app.get("/dataset.json")
+    async def serve_dataset():
+        return _FR2("dataset.json", media_type="application/json")

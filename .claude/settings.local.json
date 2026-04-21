@@ -35,7 +35,21 @@
       "Bash(taskkill //F //PID 3272 //PID 15760 //PID 11324 //PID 18300 //PID 2576 //PID 15772 //PID 1680)",
       "Bash(python -m uvicorn app.main:app --host 0.0.0.0 --port 9000)",
       "Bash(curl -s http://localhost:9000/train/signs)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:9000/)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:9000/)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(findstr :8000)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill *)",
+      "Bash(powershell *)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s http://localhost:3000/db/signs)",
+      "Bash(curl -s http://localhost:3000/train/signs)",
+      "Bash(curl *)",
+      "Bash(ls C:/Users/Arcee/Documents/Projects/Client/FSL/*.js C:/Users/Arcee/Documents/Projects/Client/FSL/*.json)",
+      "Bash(cmd /c \"taskkill /PID 11348 /F\")",
+      "Bash(cmd /c \"taskkill /PID 11876 /F\")",
+      "Bash(kill -9 11348 11876)"
     ]
   }
 }

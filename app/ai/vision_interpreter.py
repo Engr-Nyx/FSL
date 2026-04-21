@@ -15,75 +15,106 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """Ikaw ay isang dalubhasa sa Filipino Sign Language (FSL). Ang iyong pangunahing trabaho ay makilala ang mga FSL sign mula sa mga larawan ng kamay at katawan, at isalin ang mga ito sa natural na Filipino/Tagalog.
+# ── System prompt (cached — sent once, reused across calls) ───────────────────
+_SYSTEM_PROMPT = """Ikaw ay isang dalubhasa sa Filipino Sign Language (FSL) at American Sign Language (ASL). Ang iyong trabaho ay:
+1. Makilala ang mga FSL at ASL signs mula sa mga larawan
+2. Mag-convert ng ASL signs sa katumbas na FSL signs at Filipino/Tagalog na salita
+3. Bumuo ng natural na pangungusap mula sa mga detected na signs
+4. Mag-output ng Tagalog (sentence_fil) at English (sentence_en) na parehong natural at grammatically correct
 
-=== GABAY SA MGA KARANIWANG FSL SIGNS ===
+=== ASL ↔ FSL EQUIVALENTS ===
+Maraming ASL at FSL signs ay magkapareho o magkahawig. Kapag nakita ang ASL sign, i-map ito sa FSL at Tagalog:
+- ASL MOTHER/MOM → FSL NANAY (kamay sa baba)
+- ASL FATHER/DAD → FSL TATAY (kamay sa noo)
+- ASL LOVE → FSL MAHAL (braso krossado sa dibdib)
+- ASL THANK YOU → FSL SALAMAT (kamay mula sa labi pasulong)
+- ASL YES → FSL OO (kamao umiling pataas-pababa)
+- ASL NO → FSL HINDI (dalawang daliri umiling pakaliwa-pakanan)
+- ASL HELP → FSL TULONG (kamao sa palad, itaas)
+- ASL EAT/FOOD → FSL KUMAIN/PAGKAIN (mga daliri sa bibig)
+- ASL DRINK/WATER → FSL UMINOM/TUBIG (C-hugis sa bibig)
+- ASL HAPPY → FSL MASAYA (kamay paakyat sa dibdib)
+- ASL SAD → FSL MALUNGKOT (kamay pababa sa mukha)
+- ASL GOOD → FSL MABUTI (thumbs up / kamay mula sa baba pasulong)
+- ASL HOME/HOUSE → FSL BAHAY (mga daliri nagtutugma = bubong)
+- ASL PLEASE → FSL PAKIUSAP (kamay gumalaw sa dibdib)
+- ASL SORRY → FSL PAUMANHIN (kamao gumalaw sa dibdib)
+- ASL BEAUTIFUL → FSL MAGANDA (kamay gumalaw sa paligid ng mukha)
+- ASL FAMILY → FSL PAMILYA (dalawang F-kamay, bilog na nagtatagpo)
+- ASL GOOD MORNING → FSL MAGANDANG UMAGA
+- ASL GOODBYE → FSL PAALAM (pag-alon ng kamay)
+- ASL SICK → FSL SAKIT (gitnang daliri sa noo at tiyan)
+- ASL DOCTOR → FSL DOKTOR (tapikin ang pulso)
+- ASL HOSPITAL → FSL OSPITAL (H-kamay, gumuhit ng + sa braso)
+- ASL WANT → FSL GUSTO (dalawang kamay hilahin palapit)
 
-PAMILYA (Family):
-- NANAY / MOTHER: Bukas na kamay, mga daliri nakakalat, malapit sa BABA — tapikin nang dalawang beses
-- TATAY / FATHER: Bukas na kamay, mga daliri nakakalat, malapit sa NOO — tapikin nang dalawang beses
-- LOLO / GRANDFATHER: Patag na kamay malapit sa NOO, gumalaw pababa at palabas
-- LOLA / GRANDMOTHER: Patag na kamay malapit sa BABA, gumalaw pababa at palabas
-- KAPATID / SIBLING: Ituro ang balikat, gumalaw pasulong
-- ANAK / CHILD: Yumakap at uguin parang batang dala
-- ASAWA / SPOUSE: Ikabit ang mga daliri ng dalawang kamay
-- PAMILYA / FAMILY: Dalawang F-kamay, gumuhit ng bilog na nagtatagpo
+=== MGA KARANIWANG FSL SIGNS ===
+PAMILYA:
+- NANAY: bukas na kamay malapit sa BABA, tapikin nang dalawang beses
+- TATAY: bukas na kamay malapit sa NOO, tapikin nang dalawang beses
+- LOLO: patag na kamay malapit sa NOO, gumalaw pababa at palabas
+- LOLA: patag na kamay malapit sa BABA, gumalaw pababa at palabas
+- KAPATID: ituro ang balikat, gumalaw pasulong
+- ANAK: yumakap at uguin (parang dala na bata)
+- ASAWA: ikabit ang mga daliri ng dalawang kamay
+- PAMILYA: dalawang F-kamay, gumuhit ng bilog na nagtatagpo
 
-PAGBATI (Greetings):
-- KUMUSTA / HOW ARE YOU: Ihampas ang bukas na kamay, thumbs up
-- MAGANDANG UMAGA / GOOD MORNING: Buksan ang mga kamay (maganda), itaas ang isang kamay (sunrise)
-- PAALAM / GOODBYE: Hipain ang kamay, o ulit-ulitin ang pagsasara ng mga daliri
-- SALAMAT / THANK YOU: Patag na kamay mula sa labi pasulong at pababa
-- PAUMANHIN / SORRY: Saradong kamao gumalaw paligid ng dibdib
-- PAKIUSAP / PLEASE: Patag na kamay sa dibdib gumalaw paligid
+PAGBATI:
+- KUMUSTA: ihampas ang bukas na kamay, thumbs up
+- MAGANDANG UMAGA: buksan ang mga kamay (maganda) + itaas ang isang kamay (sunrise)
+- MAGANDANG HAPON: buksan ang mga kamay + antas na kamay gumalaw pahalang
+- MAGANDANG GABI: buksan ang mga kamay + kurbadong kamay bumaba (parang lumulubog na araw)
+- PAALAM: alon ng kamay o ulit-ulitin ang pagsasara ng mga daliri
+- SALAMAT: patag na kamay mula sa labi pasulong at pababa
+- PAUMANHIN: saradong kamao gumalaw paligid ng dibdib
+- PAKIUSAP: patag na kamay sa dibdib gumalaw paligid
 
-PANGKARANIWANG SALITA (Common):
-- OO / YES: Saradong kamao umiling-iling pataas-pababa
-- HINDI / NO: Dalawang daliri umiling-iling pakaliwa-pakanan
-- KUMAIN / EAT: Mga daliri nakakulob, paulit-ulit na tutungo sa bibig
-- UMINOM / DRINK: C-hugis na kamay tatagilid sa bibig
-- TUBIG / WATER: W-kamay, tapikin ang labi nang dalawang beses
-- PAGKAIN / FOOD: Mga daliri nakakulob, tapikin ang bibig
-- GUSTO / WANT: Dalawang kamay may kurbadong daliri, hilahin palapit sa katawan
-- TULONG / HELP: Isang kamao sa bukas na palad, parehong itaas
-- BAHAY / HOME: Ikonekta ang mga daliri (bubong), pababa (pader)
-- MABUTI / GOOD: Thumbs up, o patag na kamay mula sa baba pasulong
+PANGKARANIWANG SALITA:
+- OO: saradong kamao umiling pataas-pababa
+- HINDI: dalawang daliri umiling pakaliwa-pakanan
+- KUMAIN: mga daliri nakakulob, paulit-ulit na tutungo sa bibig
+- UMINOM: C-hugis na kamay tatagilid sa bibig
+- TUBIG: W-kamay, tapikin ang labi nang dalawang beses
+- PAGKAIN: mga daliri nakakulob, tapikin ang bibig
+- GUSTO: dalawang kamay may kurbadong daliri, hilahin palapit sa katawan
+- TULONG: isang kamao sa bukas na palad, parehong itaas
+- BAHAY: ikonekta ang mga daliri (bubong), pababa (pader)
+- MABUTI: thumbs up, o patag na kamay mula sa baba pasulong
 
-DAMDAMIN (Emotions):
-- MAHAL / LOVE: Dalawang braso krossado sa dibdib
-- MAGANDA / BEAUTIFUL: Bukas na kamay gumalaw paligid ng mukha, isara
-- MASAYA / HAPPY: Bukas na kamay sa dibdib, paulit-ulit na paakyat
-- MALUNGKOT / SAD: Bukas na kamay, pababa mula sa antas ng mukha
-- GALIT / ANGRY: Kurbadong kamay sa mukha, hilahin pababa nang may puwersa
+DAMDAMIN:
+- MAHAL: dalawang braso krossado sa dibdib
+- MAGANDA: bukas na kamay gumalaw paligid ng mukha, isara
+- MASAYA: bukas na kamay sa dibdib, paulit-ulit na paakyat
+- MALUNGKOT: bukas na kamay, pababa mula sa antas ng mukha
+- GALIT: kurbadong kamay sa mukha, hilahin pababa nang may puwersa
 
-KALUSUGAN (Health):
-- OSPITAL / HOSPITAL: H-kamay, gumuhit ng + sa itaas ng braso
-- DOKTOR / DOCTOR: Dalawang daliri, tapikin ang loob ng pulso
-- SAKIT / SICK: Gitnang daliri sa noo at tiyan, pareho pahilig
+KALUSUGAN:
+- OSPITAL: H-kamay, gumuhit ng + sa itaas ng braso
+- DOKTOR: dalawang daliri, tapikin ang loob ng pulso
+- SAKIT: gitnang daliri sa noo at tiyan, pareho pahilig
 
-NUMERO: 1=isang daliri, 2=dalawa, 3=tatlo (kasama thumb), atbp.
+NUMERO: 1=isang daliri, 2=dalawang daliri, 3=tatlo (kasama thumb), atbp.
+TITIK: gumamit ng manual alphabet ng FSL para sa mga letra
 
-=== GRAMÁTICA NG FSL ===
+=== GRAMATIKA NG FSL ===
 - Ayos ng salita: Paksa-Komento (hindi SVO)
-- Ang mga facial expression ay gramatiko: Kilay pataas = tanong (OO/HINDI), Kilay bagsak = WH-tanong
-- HINDI para sa negasyon
+- Facial expression ay gramatiko: kilay pataas = tanong (OO/HINDI), kilay bagsak = WH-tanong
+- HINDI para sa negasyon (inilalagay sa huli ng pangungusap)
 
-=== PANUTO ===
-Suriin ang LAHAT ng larawan bilang isang pagkakasunod-sunod — hanapin ang galaw at posisyon ng kamay kaugnay ng mukha/katawan.
-
-Para sa NANAY: ang kamay dapat MALAPIT SA BABA
-Para sa TATAY: ang kamay dapat MALAPIT SA NOO
-
-MAHAHALAGANG PANUTO:
-1. PALAGI kang mag-interpret ng anumang makikita mong kamay o kilos — kahit hindi sigurado, ibigay ang iyong pinakamabuting hulaan.
-2. Kapag nakakita ng kamay MALAPIT SA BABA → NANAY; MALAPIT SA NOO → TATAY.
-3. Gamitin ang gabay sa itaas para matukoy ang pinaka-angkop na sign.
-4. HUWAG mag-iwan ng empty — lagi kang mag-guess.
+=== PANUTO SA PAG-INTERPRET ===
+1. Suriin ang LAHAT ng larawan bilang isang pagkakasunod-sunod — hanapin ang galaw at posisyon ng kamay
+2. I-detect ang lahat ng signs (FSL o ASL) at i-convert ang lahat sa Filipino/Tagalog equivalents
+3. Bumuo ng NATURAL na pangungusap mula sa mga natukoy na signs:
+   - sentence_fil: natural na Tagalog na maaaring sabihin nang malakas (para sa TTS)
+   - sentence_en: natural na English translation
+4. Para sa NANAY: kamay MALAPIT SA BABA; para sa TATAY: kamay MALAPIT SA NOO
+5. PALAGI kang mag-interpret ng anumang makikita mong kamay o kilos — huwag mag-iwan ng blangko
+6. Kung hindi sigurado, ibigay ang pinakamabuting hulaan batay sa posisyon ng kamay
 
 Sumagot LAMANG ng valid JSON (walang markdown, walang paliwanag):
 {
   "glosses": ["SIGN1", "SIGN2"],
-  "sentence_fil": "Natural na pangungusap sa Filipino",
+  "sentence_fil": "Natural na pangungusap sa Filipino na angkop para sa TTS",
   "sentence_en": "Natural English sentence",
   "confidence": "high|medium|low"
 }
@@ -97,7 +128,7 @@ _interpreter_instance: Optional["VisionInterpreter"] = None
 
 
 class VisionInterpreter:
-    """Interprets FSL signs from video frames using Claude Vision.
+    """Interprets FSL/ASL signs from video frames using Claude Vision.
 
     Call ``VisionInterpreter.get()`` to obtain the shared singleton.
     """
@@ -134,12 +165,13 @@ class VisionInterpreter:
         lang: str = "fil",
         lm_snapshots: list | None = None,
     ) -> dict:
-        """Interpret FSL from a sequence of JPEG frame bytes.
+        """Interpret FSL/ASL signs from a sequence of JPEG frame bytes.
 
         Args:
             frames: List of JPEG image bytes (from video or webcam).
             max_frames: Maximum frames to send (sampled evenly to stay within limits).
             lang: Primary language hint — 'fil' for Tagalog, 'en' for English.
+            lm_snapshots: MediaPipe landmark snapshots for positional context.
 
         Returns:
             {glosses, sentence_fil, sentence_en, confidence}
@@ -151,7 +183,7 @@ class VisionInterpreter:
         if not sampled:
             return dict(_FALLBACK)
 
-        # Build content blocks: one image per sampled frame + instruction text
+        # Build content blocks: images first, then instruction text
         content: list[dict] = []
         for jpeg_bytes in sampled:
             b64 = base64.standard_b64encode(jpeg_bytes).decode()
@@ -164,17 +196,19 @@ class VisionInterpreter:
                 },
             })
 
-        # Build landmark-based position description (very helpful for NANAY vs TATAY etc.)
         lm_description = _describe_landmarks(lm_snapshots) if lm_snapshots else ""
 
         user_text = (
-            f"Ang {len(sampled)} na larawan sa itaas ay mga frame mula sa FSL signing clip "
-            f"({len(frames)} kabuuang frames na nakolekta).\n"
+            f"Ang {len(sampled)} na larawan sa itaas ay mga frame mula sa signing clip "
+            f"({len(frames)} kabuuang frames).\n"
         )
         if lm_description:
             user_text += f"\nMEDIAPIPE HAND TRACKING DATA:\n{lm_description}\n"
-            user_text += "\nGamitin ang positional data sa itaas para matukoy ang tamang FSL sign."
-        user_text += "\n\nI-interpret ang mga FSL signs at ibalik sa Filipino."
+            user_text += "\nGamitin ang positional data para matukoy ang tamang FSL sign."
+        user_text += (
+            "\n\nI-interpret ang lahat ng signs (FSL o ASL), i-convert sa Filipino/Tagalog, "
+            "at bumuo ng natural na pangungusap na angkop para sa text-to-speech."
+        )
 
         content.append({"type": "text", "text": user_text})
 
@@ -183,7 +217,13 @@ class VisionInterpreter:
             response = self._client.messages.create(  # type: ignore[union-attr]
                 model=self._model,
                 max_tokens=512,
-                system=_SYSTEM_PROMPT,
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},  # prompt caching
+                    }
+                ],
                 messages=[{"role": "user", "content": content}],
             )
             raw = response.content[0].text.strip()
@@ -195,7 +235,10 @@ class VisionInterpreter:
                 "sentence_en": result.get("sentence_en", ""),
                 "confidence": result.get("confidence", "low"),
             }
-            logger.info("Parsed result: glosses=%s fil='%s' conf=%s", out["glosses"], out["sentence_fil"], out["confidence"])
+            logger.info(
+                "Parsed result: glosses=%s fil='%s' conf=%s",
+                out["glosses"], out["sentence_fil"], out["confidence"],
+            )
             return out
         except Exception as exc:
             logger.warning("VisionInterpreter.interpret failed: %s", exc)
@@ -227,7 +270,6 @@ def _sample_frames(frames: list[bytes], n: int) -> list[bytes]:
     return [frames[int(i * step)] for i in range(n)]
 
 
-# Absolute Y position map (fallback when no face landmarks)
 _POSITION_MAP_ABS = [
     (0.00, 0.20, "itaas ng ulo (above head)"),
     (0.20, 0.32, "noo/forehead (TATAY area)"),
@@ -237,7 +279,6 @@ _POSITION_MAP_ABS = [
     (0.72, 1.00, "tiyan/ibaba (stomach area)"),
 ]
 
-# Face-relative Y position map (0 = forehead, 1 = chin, 2+ = chest/below)
 _POSITION_MAP_REL = [
     (-1.50, -0.30, "itaas ng ulo (well above head)"),
     (-0.30,  0.22, "noo/forehead — TATAY zone"),
@@ -250,29 +291,20 @@ _POSITION_MAP_REL = [
 
 
 def _describe_landmarks(lm_snapshots: list) -> str:
-    """Convert MediaPipe Holistic landmark snapshots into a text description for Claude.
-
-    Uses face-relative Y (relative_y) when available — this gives Claude the precise
-    anatomical position of each hand relative to the signer's face, which is the key
-    distinguishing feature for FSL family/greeting signs.
-
-    lm_snapshots: list of per-frame lists.  Each hand dict contains:
-        wrist_y, wrist_x, label, and optionally relative_y + face_ref.
-    """
+    """Convert MediaPipe Holistic landmark snapshots into a text description for Claude."""
     if not lm_snapshots:
         return ""
 
     lines = []
-
-    # Check whether we have face-relative data available
     all_hands = [h for snap in lm_snapshots for h in (snap or [])]
     has_face_rel = any("relative_y" in h for h in all_hands)
 
     if has_face_rel:
-        lines.append("NOTE: Coordinate system = FACE-RELATIVE (0=forehead, 1=chin, 2+=chest). "
-                     "Positive values are BELOW the forehead.")
+        lines.append(
+            "NOTE: Coordinate system = FACE-RELATIVE (0=forehead, 1=chin, 2+=chest). "
+            "Positive values are BELOW the forehead."
+        )
 
-    # Sample evenly from snapshots
     step = max(1, len(lm_snapshots) // 8)
     for i, snapshot in enumerate(lm_snapshots[::step][:8]):
         if not snapshot:
@@ -291,9 +323,7 @@ def _describe_landmarks(lm_snapshots: list) -> str:
                     if y_min <= ry < y_max:
                         pos = desc
                         break
-                hand_descs.append(
-                    f"{side} kamay: rel_y={ry:+.2f} ({pos}), x={wx:.2f} ({lr})"
-                )
+                hand_descs.append(f"{side} kamay: rel_y={ry:+.2f} ({pos}), x={wx:.2f} ({lr})")
             else:
                 wy = hand.get("wrist_y", 0.5)
                 pos = "hindi matukoy"
@@ -301,9 +331,7 @@ def _describe_landmarks(lm_snapshots: list) -> str:
                     if y_min <= wy < y_max:
                         pos = desc
                         break
-                hand_descs.append(
-                    f"{side} kamay: y={wy:.2f} ({pos}), x={wx:.2f} ({lr})"
-                )
+                hand_descs.append(f"{side} kamay: y={wy:.2f} ({pos}), x={wx:.2f} ({lr})")
 
         if hand_descs:
             lines.append(f"Frame {(i*step)+1}: {'; '.join(hand_descs)}")
@@ -313,7 +341,6 @@ def _describe_landmarks(lm_snapshots: list) -> str:
 
 def _parse_json(text: str) -> dict:
     """Extract and parse JSON from Claude's response (handles markdown blocks)."""
-    # Strip markdown code fences if present
     if "```" in text:
         parts = text.split("```")
         for part in parts:
